@@ -1,5 +1,5 @@
 dataset_info = dict(
-    dataset_name='human3.6m_left_hand',
+    dataset_name='human3.6m_wholebody',
     paper_info=dict(
         author='',
         title='H3WB: Human3.6M 3D WholeBody Dataset and Benchmark',
@@ -8,341 +8,486 @@ dataset_info = dict(
         homepage='https://github.com/wholebody3d/wholebody3d',
     ),
     keypoint_info={
-        91:
+        0:
         dict(
             name='left_hand_root',
-            id=91,
+            id=0,
             color=[255, 255, 255],
             type='',
             swap='right_hand_root'),
-        92:
+        1:
         dict(
             name='left_thumb1',
-            id=92,
+            id=1,
             color=[255, 128, 0],
             type='',
             swap='right_thumb1'),
-        93:
+        2:
         dict(
             name='left_thumb2',
-            id=93,
+            id=2,
             color=[255, 128, 0],
             type='',
             swap='right_thumb2'),
-        94:
+        3:
         dict(
             name='left_thumb3',
-            id=94,
+            id=3,
             color=[255, 128, 0],
             type='',
             swap='right_thumb3'),
-        95:
+        4:
         dict(
             name='left_thumb4',
-            id=95,
+            id=4,
             color=[255, 128, 0],
             type='',
             swap='right_thumb4'),
-        96:
+        5:
         dict(
             name='left_forefinger1',
-            id=96,
+            id=5,
             color=[255, 153, 255],
             type='',
             swap='right_forefinger1'),
-        97:
+        6:
         dict(
             name='left_forefinger2',
-            id=97,
+            id=6,
             color=[255, 153, 255],
             type='',
             swap='right_forefinger2'),
-        98:
+        7:
         dict(
             name='left_forefinger3',
-            id=98,
+            id=7,
             color=[255, 153, 255],
             type='',
             swap='right_forefinger3'),
-        99:
+        8:
         dict(
             name='left_forefinger4',
-            id=99,
+            id=8,
             color=[255, 153, 255],
             type='',
             swap='right_forefinger4'),
-        100:
+        9:
         dict(
             name='left_middle_finger1',
-            id=100,
+            id=9,
             color=[102, 178, 255],
             type='',
             swap='right_middle_finger1'),
-        101:
+        10:
         dict(
             name='left_middle_finger2',
-            id=101,
+            id=10,
             color=[102, 178, 255],
             type='',
             swap='right_middle_finger2'),
-        102:
+        11:
         dict(
             name='left_middle_finger3',
-            id=102,
+            id=11,
             color=[102, 178, 255],
             type='',
             swap='right_middle_finger3'),
-        103:
+        12:
         dict(
             name='left_middle_finger4',
-            id=103,
+            id=12,
             color=[102, 178, 255],
             type='',
             swap='right_middle_finger4'),
-        104:
+        13:
         dict(
             name='left_ring_finger1',
-            id=104,
+            id=13,
             color=[255, 51, 51],
             type='',
             swap='right_ring_finger1'),
-        105:
+        14:
         dict(
             name='left_ring_finger2',
-            id=105,
+            id=14,
             color=[255, 51, 51],
             type='',
             swap='right_ring_finger2'),
-        106:
+        15:
         dict(
             name='left_ring_finger3',
-            id=106,
+            id=15,
             color=[255, 51, 51],
             type='',
             swap='right_ring_finger3'),
-        107:
+        16:
         dict(
             name='left_ring_finger4',
-            id=107,
+            id=16,
             color=[255, 51, 51],
             type='',
             swap='right_ring_finger4'),
-        108:
+        17:
         dict(
             name='left_pinky_finger1',
-            id=108,
+            id=17,
             color=[0, 255, 0],
             type='',
             swap='right_pinky_finger1'),
-        109:
+        18:
         dict(
             name='left_pinky_finger2',
-            id=109,
+            id=18,
             color=[0, 255, 0],
             type='',
             swap='right_pinky_finger2'),
-        110:
+        19:
         dict(
             name='left_pinky_finger3',
-            id=110,
+            id=19,
             color=[0, 255, 0],
             type='',
             swap='right_pinky_finger3'),
-        111:
+        20:
         dict(
             name='left_pinky_finger4',
-            id=111,
+            id=20,
             color=[0, 255, 0],
             type='',
             swap='right_pinky_finger4'),
-    },
-    skeleton_info={
+        21:
+        dict(
+            name='right_hand_root',
+            id=21,
+            color=[255, 255, 255],
+            type='',
+            swap='left_hand_root'),
+        22:
+        dict(
+            name='right_thumb1',
+            id=22,
+            color=[255, 128, 0],
+            type='',
+            swap='left_thumb1'),
+        23:
+        dict(
+            name='right_thumb2',
+            id=23,
+            color=[255, 128, 0],
+            type='',
+            swap='left_thumb2'),
+        24:
+        dict(
+            name='right_thumb3',
+            id=24,
+            color=[255, 128, 0],
+            type='',
+            swap='left_thumb3'),
         25:
         dict(
-            link=('left_hand_root', 'left_thumb1'), id=25, color=[255, 128,
-                                                                  0]),
+            name='right_thumb4',
+            id=25,
+            color=[255, 128, 0],
+            type='',
+            swap='left_thumb4'),
         26:
-        dict(link=('left_thumb1', 'left_thumb2'), id=26, color=[255, 128, 0]),
+        dict(
+            name='right_forefinger1',
+            id=26,
+            color=[255, 153, 255],
+            type='',
+            swap='left_forefinger1'),
         27:
-        dict(link=('left_thumb2', 'left_thumb3'), id=27, color=[255, 128, 0]),
+        dict(
+            name='right_forefinger2',
+            id=27,
+            color=[255, 153, 255],
+            type='',
+            swap='left_forefinger2'),
         28:
-        dict(link=('left_thumb3', 'left_thumb4'), id=28, color=[255, 128, 0]),
+        dict(
+            name='right_forefinger3',
+            id=28,
+            color=[255, 153, 255],
+            type='',
+            swap='left_forefinger3'),
         29:
         dict(
-            link=('left_hand_root', 'left_forefinger1'),
+            name='right_forefinger4',
             id=29,
-            color=[255, 153, 255]),
+            color=[255, 153, 255],
+            type='',
+            swap='left_forefinger4'),
         30:
         dict(
-            link=('left_forefinger1', 'left_forefinger2'),
+            name='right_middle_finger1',
             id=30,
-            color=[255, 153, 255]),
+            color=[102, 178, 255],
+            type='',
+            swap='left_middle_finger1'),
         31:
         dict(
-            link=('left_forefinger2', 'left_forefinger3'),
+            name='right_middle_finger2',
             id=31,
-            color=[255, 153, 255]),
+            color=[102, 178, 255],
+            type='',
+            swap='left_middle_finger2'),
         32:
         dict(
-            link=('left_forefinger3', 'left_forefinger4'),
+            name='right_middle_finger3',
             id=32,
-            color=[255, 153, 255]),
+            color=[102, 178, 255],
+            type='',
+            swap='left_middle_finger3'),
         33:
         dict(
-            link=('left_hand_root', 'left_middle_finger1'),
+            name='right_middle_finger4',
             id=33,
-            color=[102, 178, 255]),
+            color=[102, 178, 255],
+            type='',
+            swap='left_middle_finger4'),
         34:
         dict(
-            link=('left_middle_finger1', 'left_middle_finger2'),
+            name='right_ring_finger1',
             id=34,
-            color=[102, 178, 255]),
+            color=[255, 51, 51],
+            type='',
+            swap='left_ring_finger1'),
         35:
         dict(
-            link=('left_middle_finger2', 'left_middle_finger3'),
+            name='right_ring_finger2',
             id=35,
-            color=[102, 178, 255]),
+            color=[255, 51, 51],
+            type='',
+            swap='left_ring_finger2'),
         36:
         dict(
-            link=('left_middle_finger3', 'left_middle_finger4'),
+            name='right_ring_finger3',
             id=36,
-            color=[102, 178, 255]),
+            color=[255, 51, 51],
+            type='',
+            swap='left_ring_finger3'),
         37:
         dict(
-            link=('left_hand_root', 'left_ring_finger1'),
+            name='right_ring_finger4',
             id=37,
-            color=[255, 51, 51]),
+            color=[255, 51, 51],
+            type='',
+            swap='left_ring_finger4'),
         38:
         dict(
-            link=('left_ring_finger1', 'left_ring_finger2'),
+            name='right_pinky_finger1',
             id=38,
-            color=[255, 51, 51]),
+            color=[0, 255, 0],
+            type='',
+            swap='left_pinky_finger1'),
         39:
         dict(
-            link=('left_ring_finger2', 'left_ring_finger3'),
+            name='right_pinky_finger2',
             id=39,
-            color=[255, 51, 51]),
+            color=[0, 255, 0],
+            type='',
+            swap='left_pinky_finger2'),
         40:
         dict(
-            link=('left_ring_finger3', 'left_ring_finger4'),
+            name='right_pinky_finger3',
             id=40,
-            color=[255, 51, 51]),
+            color=[0, 255, 0],
+            type='',
+            swap='left_pinky_finger3'),
         41:
         dict(
-            link=('left_hand_root', 'left_pinky_finger1'),
+            name='right_pinky_finger4',
             id=41,
+            color=[0, 255, 0],
+            type='',
+            swap='left_pinky_finger4')
+    },
+    skeleton_info={
+        0:
+        dict(link=('left_hand_root', 'left_thumb1'), id=0, color=[255, 128, 0]),
+        1:
+        dict(link=('left_thumb1', 'left_thumb2'), id=1, color=[255, 128, 0]),
+        2:
+        dict(link=('left_thumb2', 'left_thumb3'), id=2, color=[255, 128, 0]),
+        3:
+        dict(link=('left_thumb3', 'left_thumb4'), id=3, color=[255, 128, 0]),
+        4:
+        dict(
+            link=('left_hand_root', 'left_forefinger1'),
+            id=4,
+            color=[255, 153, 255]),
+        5:
+        dict(
+            link=('left_forefinger1', 'left_forefinger2'),
+            id=5,
+            color=[255, 153, 255]),
+        6:
+        dict(
+            link=('left_forefinger2', 'left_forefinger3'),
+            id=6,
+            color=[255, 153, 255]),
+        7:
+        dict(
+            link=('left_forefinger3', 'left_forefinger4'),
+            id=7,
+            color=[255, 153, 255]),
+        8:
+        dict(
+            link=('left_hand_root', 'left_middle_finger1'),
+            id=8,
+            color=[102, 178, 255]),
+        9:
+        dict(
+            link=('left_middle_finger1', 'left_middle_finger2'),
+            id=9,
+            color=[102, 178, 255]),
+        10:
+        dict(
+            link=('left_middle_finger2', 'left_middle_finger3'),
+            id=10,
+            color=[102, 178, 255]),
+        11:
+        dict(
+            link=('left_middle_finger3', 'left_middle_finger4'),
+            id=11,
+            color=[102, 178, 255]),
+        12:
+        dict(
+            link=('left_hand_root', 'left_ring_finger1'),
+            id=12,
+            color=[255, 51, 51]),
+        13:
+        dict(
+            link=('left_ring_finger1', 'left_ring_finger2'),
+            id=13,
+            color=[255, 51, 51]),
+        14:
+        dict(
+            link=('left_ring_finger2', 'left_ring_finger3'),
+            id=14,
+            color=[255, 51, 51]),
+        15:
+        dict(
+            link=('left_ring_finger3', 'left_ring_finger4'),
+            id=15,
+            color=[255, 51, 51]),
+        16:
+        dict(
+            link=('left_hand_root', 'left_pinky_finger1'),
+            id=16,
             color=[0, 255, 0]),
-        42:
+        17:
         dict(
             link=('left_pinky_finger1', 'left_pinky_finger2'),
-            id=42,
+            id=17,
             color=[0, 255, 0]),
-        43:
+        18:
         dict(
             link=('left_pinky_finger2', 'left_pinky_finger3'),
-            id=43,
+            id=18,
             color=[0, 255, 0]),
-        44:
+        19:
         dict(
             link=('left_pinky_finger3', 'left_pinky_finger4'),
-            id=44,
+            id=19,
             color=[0, 255, 0]),
-        45:
+        20:
         dict(
             link=('right_hand_root', 'right_thumb1'),
-            id=45,
+            id=20,
             color=[255, 128, 0]),
-        46:
+        21:
         dict(
-            link=('right_thumb1', 'right_thumb2'), id=46, color=[255, 128, 0]),
-        47:
+            link=('right_thumb1', 'right_thumb2'), id=21, color=[255, 128, 0]),
+        22:
         dict(
-            link=('right_thumb2', 'right_thumb3'), id=47, color=[255, 128, 0]),
-        48:
+            link=('right_thumb2', 'right_thumb3'), id=22, color=[255, 128, 0]),
+        23:
         dict(
-            link=('right_thumb3', 'right_thumb4'), id=48, color=[255, 128, 0]),
-        49:
+            link=('right_thumb3', 'right_thumb4'), id=23, color=[255, 128, 0]),
+        24:
         dict(
             link=('right_hand_root', 'right_forefinger1'),
-            id=49,
+            id=24,
             color=[255, 153, 255]),
-        50:
+        25:
         dict(
             link=('right_forefinger1', 'right_forefinger2'),
-            id=50,
+            id=25,
             color=[255, 153, 255]),
-        51:
+        26:
         dict(
             link=('right_forefinger2', 'right_forefinger3'),
-            id=51,
+            id=26,
             color=[255, 153, 255]),
-        52:
+        27:
         dict(
             link=('right_forefinger3', 'right_forefinger4'),
-            id=52,
+            id=27,
             color=[255, 153, 255]),
-        53:
+        28:
         dict(
             link=('right_hand_root', 'right_middle_finger1'),
-            id=53,
+            id=28,
             color=[102, 178, 255]),
-        54:
+        29:
         dict(
             link=('right_middle_finger1', 'right_middle_finger2'),
-            id=54,
+            id=29,
             color=[102, 178, 255]),
-        55:
+        30:
         dict(
             link=('right_middle_finger2', 'right_middle_finger3'),
-            id=55,
+            id=30,
             color=[102, 178, 255]),
-        56:
+        31:
         dict(
             link=('right_middle_finger3', 'right_middle_finger4'),
-            id=56,
+            id=31,
             color=[102, 178, 255]),
-        57:
+        32:
         dict(
             link=('right_hand_root', 'right_ring_finger1'),
-            id=57,
+            id=32,
             color=[255, 51, 51]),
-        58:
+        33:
         dict(
             link=('right_ring_finger1', 'right_ring_finger2'),
-            id=58,
+            id=33,
             color=[255, 51, 51]),
-        59:
+        34:
         dict(
             link=('right_ring_finger2', 'right_ring_finger3'),
-            id=59,
+            id=34,
             color=[255, 51, 51]),
-        60:
+        35:
         dict(
             link=('right_ring_finger3', 'right_ring_finger4'),
-            id=60,
+            id=35,
             color=[255, 51, 51]),
-        61:
+        36:
         dict(
             link=('right_hand_root', 'right_pinky_finger1'),
-            id=61,
+            id=36,
             color=[0, 255, 0]),
-        62:
+        37:
         dict(
             link=('right_pinky_finger1', 'right_pinky_finger2'),
-            id=62,
+            id=37,
             color=[0, 255, 0]),
-        63:
+        38:
         dict(
             link=('right_pinky_finger2', 'right_pinky_finger3'),
-            id=63,
+            id=38,
             color=[0, 255, 0]),
-        64:
+        39:
         dict(
             link=('right_pinky_finger3', 'right_pinky_finger4'),
-            id=64,
+            id=39,
             color=[0, 255, 0])
     },
-    joint_weights=[1.] * 21,
+    joint_weights=[1.] * 42,
     # 'https://github.com/jin-s13/COCO-WholeBody/blob/master/'
     # 'evaluation/myeval_wholebody.py#L175'
     sigmas=[
@@ -360,4 +505,4 @@ dataset_info = dict(
         0.022, 0.031, 0.029, 0.022, 0.035, 0.037, 0.047, 0.026, 0.025, 0.024,
         0.035, 0.018, 0.024, 0.022, 0.026, 0.017, 0.021, 0.021, 0.032, 0.02,
         0.019, 0.022, 0.031
-    ][91:112])
+    ][-42:])
