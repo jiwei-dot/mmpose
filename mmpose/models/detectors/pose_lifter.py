@@ -195,6 +195,7 @@ class PoseLifter(BasePose):
         if self.with_keypoint:
             keypoint_losses = self.keypoint_head.get_loss(
                 output, target, target_weight)
+            # metas中的flip_pairs在get_accuracy中用不到
             keypoint_accuracy = self.keypoint_head.get_accuracy(
                 output, target, target_weight, metas)
             losses.update(keypoint_losses)
@@ -248,6 +249,7 @@ class PoseLifter(BasePose):
             features = self.neck(features)
         if self.with_keypoint:
             output = self.keypoint_head.inference_model(features)
+            # metas中的flip_pairs在decode中用不到
             keypoint_result = self.keypoint_head.decode(metas, output)
             results.update(keypoint_result)
 
