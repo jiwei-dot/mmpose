@@ -23,6 +23,7 @@ lr_config = dict(
 
 total_epochs = 200
 
+
 # channel_cfg = dict(
 #     num_output_channels=66,
 #     dataset_joints=66,
