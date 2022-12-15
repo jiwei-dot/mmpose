@@ -181,8 +181,9 @@ class PoseLifter(BasePose):
 
     def forward_train(self, input, target, target_weight, metas, **kwargs):
         """Defines the computation performed at every call when training."""
+        # input (B, N x D_in, T)
+        # target (B, N-1, D_out)
         assert input.size(0) == len(metas)
-
         # supervised learning
         # pose model
         features = self.backbone(input)

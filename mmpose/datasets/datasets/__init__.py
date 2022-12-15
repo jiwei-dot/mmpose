@@ -17,7 +17,7 @@ from .fashion import DeepFashionDataset
 from .gesture import NVGestureDataset
 from .hand import (FreiHandDataset, HandCocoWholeBodyDataset,
                    InterHand2DDataset, InterHand3DDataset, OneHand10KDataset,
-                   PanopticDataset)
+                   PanopticDataset, Hand3DH3WBDataset)
 from .mesh import (MeshAdversarialDataset, MeshH36MDataset, MeshMixDataset,
                    MoshDataset)
 from .top_down import (TopDownAicDataset, TopDownCocoDataset,
@@ -49,6 +49,10 @@ __all__ = [
     'TopDownHalpeDataset', 'TopDownPoseTrack18VideoDataset',
     'Body3DMviewDirectPanopticDataset', 'Body3DMviewDirectShelfDataset',
     'Body3DMviewDirectCampusDataset', 'NVGestureDataset',
+<<<<<<< HEAD
     'WholeBodyWoFace3DH3WBDataset',
     'Foot3DH3WBDataset'
+=======
+    'Hand3DH3WBDataset'
+>>>>>>> individual_hands
 ]
