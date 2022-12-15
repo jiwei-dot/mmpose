@@ -535,6 +535,7 @@ def main():
             radius=args.radius,
             thickness=args.thickness,
             num_instances=num_instances,
+            vis_height=800,
             show=args.show)
 
         if save_out_video:
