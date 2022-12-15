@@ -185,7 +185,7 @@ def convert_keypoint_definition(keypoints, pose_det_dataset,
                 f'{pose_det_dataset}')
 
     elif pose_lift_dataset == 'WholeBodyWoFace3DH3WBDataset':
-        assert pose_det_dataset in coco_style_datasets
+        assert pose_det_dataset == 'TopDownCocoWholeBodyDataset'
         keypoints_new = np.zeros((66, keypoints.shape[1]), dtype=keypoints.dtype)
         keypoints_new[0] = (keypoints[11] + keypoints[12]) / 2
         keypoints_new[1:18] = keypoints[0:17]
@@ -535,6 +535,7 @@ def main():
             radius=args.radius,
             thickness=args.thickness,
             num_instances=num_instances,
+            vis_height=800,
             show=args.show)
 
         if save_out_video:
