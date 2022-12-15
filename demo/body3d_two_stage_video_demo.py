@@ -40,9 +40,9 @@ def convert_keypoint_definition(keypoints, pose_det_dataset,
         ndarray[K, 2 or 3]: the transformed 2D keypoints.
     """
     assert pose_lift_dataset in [
-        'Body3DH36MDataset', 'Body3DMpiInf3dhpDataset'
+        'Body3DH36MDataset', 'Body3DMpiInf3dhpDataset', 'WholeBodyWoFace3DH3WBDataset'
         ], '`pose_lift_dataset` should be `Body3DH36MDataset` ' \
-        f'or `Body3DMpiInf3dhpDataset`, but got {pose_lift_dataset}.'
+        f'or `Body3DMpiInf3dhpDataset` or `WholeBodyWoFace3DH3WBDataset`, but got {pose_lift_dataset}.'
 
     coco_style_datasets = [
         'TopDownCocoDataset', 'TopDownPoseTrack18Dataset',
@@ -184,6 +184,15 @@ def convert_keypoint_definition(keypoints, pose_det_dataset,
                 f'unsupported conversion between {pose_lift_dataset} and '
                 f'{pose_det_dataset}')
 
+    elif pose_lift_dataset == 'WholeBodyWoFace3DH3WBDataset':
+        assert pose_det_dataset in coco_style_datasets
+        keypoints_new = np.zeros((66, keypoints.shape[1]), dtype=keypoints.dtype)
+        keypoints_new[0] = (keypoints[11] + keypoints[12]) / 2
+        keypoints_new[1:18] = keypoints[0:17]
+        keypoints_new[18:21] = keypoints[17:20]
+        keypoints_new[21:24] = keypoints[20:23]
+        keypoints_new[24:45] = keypoints[91:112]
+        keypoints_new[45:66] = keypoints[112:133]
     return keypoints_new
 
 
