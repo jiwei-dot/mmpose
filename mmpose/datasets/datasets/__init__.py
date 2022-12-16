@@ -49,10 +49,7 @@ __all__ = [
     'TopDownHalpeDataset', 'TopDownPoseTrack18VideoDataset',
     'Body3DMviewDirectPanopticDataset', 'Body3DMviewDirectShelfDataset',
     'Body3DMviewDirectCampusDataset', 'NVGestureDataset',
-<<<<<<< HEAD
     'WholeBodyWoFace3DH3WBDataset',
-    'Foot3DH3WBDataset'
-=======
+    'Foot3DH3WBDataset',
     'Hand3DH3WBDataset'
->>>>>>> individual_hands
 ]

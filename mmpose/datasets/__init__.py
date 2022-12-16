@@ -22,11 +22,9 @@ from .datasets import (  # isort:skip
     TopDownPoseTrack18Dataset, TopDownPoseTrack18VideoDataset,
     Body3DMviewDirectPanopticDataset, Body3DMviewDirectShelfDataset,
     Body3DMviewDirectCampusDataset, NVGestureDataset, WholeBody3DH3WBDataset,
-<<<<<<< HEAD
-    WholeBodyWoFace3DH3WBDataset)
-=======
+    WholeBodyWoFace3DH3WBDataset,
     Hand3DH3WBDataset)
->>>>>>> individual_hands
+
 
 __all__ = [
     'TopDownCocoDataset', 'BottomUpCocoDataset', 'BottomUpMhpDataset',
@@ -48,9 +46,6 @@ __all__ = [
     'Compose', 'DistributedSampler', 'DATASETS', 'PIPELINES', 'DatasetInfo',
     'Body3DMviewDirectPanopticDataset', 'Body3DMviewDirectShelfDataset',
     'Body3DMviewDirectCampusDataset', 'NVGestureDataset', 'WholeBody3DH3WBDataset',
-<<<<<<< HEAD
-    'WholeBodyWoFace3DH3WBDataset'
-=======
-    'Hand3DH3WBDataset'
->>>>>>> individual_hands
+    'WholeBodyWoFace3DH3WBDataset',
+    'Hand3DH3WBDataset',
 ]
