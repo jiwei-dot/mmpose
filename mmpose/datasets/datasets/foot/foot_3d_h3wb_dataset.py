@@ -39,7 +39,8 @@ class Foot3DH3WBDataset(Kpt3dSviewKpt2dDataset):
             validation dataset. Default: False.
     """
 
-    JOINT_NAMES = ['left_ankle', 'left_big_toe', 'left_small_toe',  'left_heel']
+    JOINT_NAMES = ['left_ankle', 'left_big_toe', 'left_small_toe',  'left_heel',
+                   'right_ankle', 'right_big_toe', 'right_small_toe',  'right_heel']
     
 
     # 2D joint source options:
@@ -61,12 +62,7 @@ class Foot3DH3WBDataset(Kpt3dSviewKpt2dDataset):
                  dataset_info=None,
                  test_mode=False):
         if dataset_info is None:
-            warnings.warn(
-                'dataset_info is missing. '
-                'Check https://github.com/open-mmlab/mmpose/pull/663 '
-                'for details.', DeprecationWarning)
-            cfg = Config.fromfile('configs/_base_/datasets/h3wb_wo_face.py')
-            dataset_info = cfg._cfg_dict['dataset_info']
+            raise ValueError('dataset_info must be provided')
 
         super().__init__(
             ann_file,

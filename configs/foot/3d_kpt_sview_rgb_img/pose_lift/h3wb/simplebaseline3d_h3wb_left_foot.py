@@ -1,6 +1,6 @@
 _base_ = [
     '../../../../_base_/default_runtime.py',
-    '../../../../_base_/datasets/h3wb_wo_face.py'
+    '../../../../_base_/datasets/h3wb_left_foot.py'
 ]
 
 evaluation = dict(
@@ -34,8 +34,8 @@ model = dict(
         type='TCN',
         in_channels=2 * 4,
         stem_channels=1024,
-        num_blocks=4,
-        kernel_sizes=(1, 1, 1, 1, 1),
+        num_blocks=2,
+        kernel_sizes=(1, 1, 1),
         dropout=0.5),
     keypoint_head=dict(
         type='TemporalRegressionHead',
@@ -112,10 +112,10 @@ val_pipeline = train_pipeline
 test_pipeline = val_pipeline
 
 data = dict(
-    samples_per_gpu=64,
+    samples_per_gpu=256,
     workers_per_gpu=2,
-    val_dataloader=dict(samples_per_gpu=64),
-    test_dataloader=dict(samples_per_gpu=64),
+    val_dataloader=dict(samples_per_gpu=256),
+    test_dataloader=dict(samples_per_gpu=256),
     train=dict(
         type='Foot3DH3WBDataset',
         ann_file=f'{data_root}/annotations/train_left_foot.npz',
