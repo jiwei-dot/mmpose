@@ -1,6 +1,6 @@
 _base_ = [
     '../../../../_base_/default_runtime.py',
-    '../../../../_base_/datasets/h3wb_wo_face.py'
+    '../../../../_base_/datasets/h3wb_right_foot.py'
 ]
 
 evaluation = dict(
@@ -34,8 +34,8 @@ model = dict(
         type='TCN',
         in_channels=2 * 4,
         stem_channels=1024,
-        num_blocks=4,
-        kernel_sizes=(1, 1, 1, 1, 1),
+        num_blocks=2,
+        kernel_sizes=(1, 1, 1),
         dropout=0.5),
     keypoint_head=dict(
         type='TemporalRegressionHead',
