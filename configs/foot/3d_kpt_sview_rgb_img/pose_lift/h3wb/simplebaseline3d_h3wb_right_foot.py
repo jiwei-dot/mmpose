@@ -112,10 +112,10 @@ val_pipeline = train_pipeline
 test_pipeline = val_pipeline
 
 data = dict(
-    samples_per_gpu=64,
+    samples_per_gpu=512,
     workers_per_gpu=2,
-    val_dataloader=dict(samples_per_gpu=64),
-    test_dataloader=dict(samples_per_gpu=64),
+    val_dataloader=dict(samples_per_gpu=512),
+    test_dataloader=dict(samples_per_gpu=512),
     train=dict(
         type='Foot3DH3WBDataset',
         ann_file=f'{data_root}/annotations/train_right_foot.npz',
