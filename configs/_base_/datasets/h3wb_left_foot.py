@@ -26,4 +26,9 @@ dataset_info = dict(
         dict(link=('left_ankle', 'left_heel'), id=2, color=[0, 255, 0]),
     },
     joint_weights=[1.] * 4,
-    sigmas=[])
+    sigmas=[],
+    stats_info=dict(
+        bbox_center=[533.02689777, 584.97778603],
+        bbox_scale=0.1703109830795288,
+    )
+)

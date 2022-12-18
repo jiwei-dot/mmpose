@@ -263,8 +263,7 @@ def inference_pose_lifter_model(model,
     if dataset_info is not None:
         flip_pairs = dataset_info.flip_pairs
         if 'stats_info' in dataset_info._dataset_info:
-            bbox_center = dataset_info._dataset_info['stats_info'][
-                'bbox_center']
+            bbox_center = dataset_info._dataset_info['stats_info']['bbox_center']
             bbox_scale = dataset_info._dataset_info['stats_info']['bbox_scale']
         else:
             bbox_center = None
@@ -351,8 +350,7 @@ def inference_pose_lifter_model(model,
     poses_3d = result['preds']
     if poses_3d.shape[-1] != 4:
         assert poses_3d.shape[-1] == 3
-        dummy_score = np.ones(
-            poses_3d.shape[:-1] + (1, ), dtype=poses_3d.dtype)
+        dummy_score = np.ones(poses_3d.shape[:-1] + (1, ), dtype=poses_3d.dtype)
         poses_3d = np.concatenate((poses_3d, dummy_score), axis=-1)
     pose_results = []
     for pose_2d, pose_3d in zip(pose_sequences_2d, poses_3d):
