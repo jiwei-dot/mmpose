@@ -27,8 +27,4 @@ dataset_info = dict(
     },
     joint_weights=[1.] * 4,
     sigmas=[],
-    stats_info=dict(
-        bbox_center=[533.02689777, 584.97778603],
-        bbox_scale=0.1703109830795288,
-    )
 )
