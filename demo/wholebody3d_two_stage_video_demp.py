@@ -301,41 +301,41 @@ def main():
     output_layer_names = None
 
     print('Running 2D pose detection inference...')
-    # for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
-    #     pose_det_results_last = pose_det_results
+    for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
+        pose_det_results_last = pose_det_results
 
-    #     # test a single image, the resulting box is (x1, y1, x2, y2)
-    #     mmdet_results = inference_detector(person_det_model, cur_frame)
+        # test a single image, the resulting box is (x1, y1, x2, y2)
+        mmdet_results = inference_detector(person_det_model, cur_frame)
 
-    #     # keep the person class bounding boxes.
-    #     person_det_results = process_mmdet_results(mmdet_results,
-    #                                                args.det_cat_id)
+        # keep the person class bounding boxes.
+        person_det_results = process_mmdet_results(mmdet_results,
+                                                   args.det_cat_id)
 
-    #     if args.use_multi_frames:
-    #         frames = collect_multi_frames(video, frame_id, indices,
-    #                                       args.online)
+        if args.use_multi_frames:
+            frames = collect_multi_frames(video, frame_id, indices,
+                                          args.online)
 
-    #     # make person results for current image
-    #     pose_det_results, _ = inference_top_down_pose_model(
-    #         pose_det_model,
-    #         frames if args.use_multi_frames else cur_frame,
-    #         person_det_results,
-    #         bbox_thr=args.bbox_thr,
-    #         format='xyxy',
-    #         dataset=pose_det_dataset,
-    #         dataset_info=dataset_info,
-    #         return_heatmap=return_heatmap,
-    #         outputs=output_layer_names)
+        # make person results for current image
+        pose_det_results, _ = inference_top_down_pose_model(
+            pose_det_model,
+            frames if args.use_multi_frames else cur_frame,
+            person_det_results,
+            bbox_thr=args.bbox_thr,
+            format='xyxy',
+            dataset=pose_det_dataset,
+            dataset_info=dataset_info,
+            return_heatmap=return_heatmap,
+            outputs=output_layer_names)
 
-    #     # get track id for each person instance
-    #     pose_det_results, next_id = get_track_id(
-    #         pose_det_results,
-    #         pose_det_results_last,
-    #         next_id,
-    #         use_oks=args.use_oks_tracking,
-    #         tracking_thr=args.tracking_thr)
+        # get track id for each person instance
+        pose_det_results, next_id = get_track_id(
+            pose_det_results,
+            pose_det_results_last,
+            next_id,
+            use_oks=args.use_oks_tracking,
+            tracking_thr=args.tracking_thr)
 
-    #     pose_det_results_list.append(copy.deepcopy(pose_det_results))
+        pose_det_results_list.append(copy.deepcopy(pose_det_results))
 
     # Second stage: Pose lifting
     print('Stage 2: 2D-to-3D pose lifting.')
@@ -382,10 +382,6 @@ def main():
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         fps = video.fps
         writer = None
-        
-    import pickle
-    with open('workspace/videos/hw-086-hd.pkl', 'rb') as fh:
-        pose_det_results_list = pickle.load(fh)
         
     # convert keypoint definition
     body_det_results_list = copy.deepcopy(pose_det_results_list)
