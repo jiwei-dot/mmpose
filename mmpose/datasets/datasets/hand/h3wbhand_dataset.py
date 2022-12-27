@@ -39,7 +39,11 @@ class Hand3DH3WBDataset(Kpt3dSviewKpt2dDataset):
             validation dataset. Default: False.
     """
 
-    JOINT_NAMES = []
+    JOINT_NAMES = ['wrist', 'hand_root', 'thumb1', 'thumb2', 'thumb3', 'thumb4',
+                   'forefinger1', 'forefinger2', 'forefinger3', 'forefinger4',
+                   'middle_finger1', 'middle_finger2', 'middle_finger3', 'middle_finger4',
+                   'ring_finger1', 'ring_finger2', 'ring_finger3', 'ring_finger4',
+                   'pinky_finger1', 'pinky_finger2', 'pinky_finger3', 'pinky_finger4']
     
     # 2D joint source options:
     # "gt": from the annotation file
