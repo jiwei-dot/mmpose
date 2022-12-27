@@ -27,12 +27,12 @@ lr_config = dict(
 total_epochs = 200
 
 channel_cfg = dict(
-    num_output_channels=21,
-    dataset_joints=21,
+    num_output_channels=22,
+    dataset_joints=22,
     dataset_channel=[
-       list(range(21)),
+       list(range(22)),
     ],
-    inference_channel=list(range(21)))
+    inference_channel=list(range(22)))
 
 # model settings
 model = dict(
@@ -40,7 +40,7 @@ model = dict(
     pretrained=None,
     backbone=dict(
         type='TCN',
-        in_channels=2 * 21,
+        in_channels=2 * 22,
         stem_channels=1024,
         num_blocks=3,
         kernel_sizes=(1, 1, 1, 1),
@@ -48,7 +48,7 @@ model = dict(
     keypoint_head=dict(
         type='TemporalRegressionHead',
         in_channels=1024,
-        num_joints=21-1,  # do not predict root joint (both left and right)
+        num_joints=22-1,  # do not predict root joint (both left and right)
         loss_keypoint=dict(type='MSELoss')),
     train_cfg=dict(),
     test_cfg=dict(restore_global_position=True))
@@ -56,7 +56,7 @@ model = dict(
 # data settings
 data_root = 'data/h3wb'
 data_cfg = dict(
-    num_joints=21,
+    num_joints=22,
     seq_len=1,
     seq_frame_interval=1,
     causal=True,
@@ -195,10 +195,10 @@ val_pipeline = train_pipeline
 test_pipeline = val_pipeline
 
 data = dict(
-    samples_per_gpu=64,
+    samples_per_gpu=512,
     workers_per_gpu=2,
-    val_dataloader=dict(samples_per_gpu=64),
-    test_dataloader=dict(samples_per_gpu=64),
+    val_dataloader=dict(samples_per_gpu=512),
+    test_dataloader=dict(samples_per_gpu=512),
     train=dict(
         type='Hand3DH3WBDataset',
         ann_file=f'{data_root}/annotations/train_right_hand.npz',
