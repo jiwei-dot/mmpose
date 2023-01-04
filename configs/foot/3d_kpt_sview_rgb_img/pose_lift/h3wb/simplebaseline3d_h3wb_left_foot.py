@@ -1,6 +1,6 @@
 _base_ = [
     '../../../../_base_/default_runtime.py',
-    '../../../../_base_/datasets/h3wb_left_foot.py'
+    '../../../../_base_/datasets/h3wb_foot3d.py'
 ]
 
 evaluation = dict(

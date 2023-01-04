@@ -23,7 +23,7 @@ from .datasets import (  # isort:skip
     Body3DMviewDirectPanopticDataset, Body3DMviewDirectShelfDataset,
     Body3DMviewDirectCampusDataset, NVGestureDataset, WholeBody3DH3WBDataset,
     WholeBodyWoFace3DH3WBDataset,
-    Hand3DH3WBDataset)
+    Hand3DH3WBDataset, Foot3DH3WBDataset)
 
 
 __all__ = [
@@ -47,5 +47,5 @@ __all__ = [
     'Body3DMviewDirectPanopticDataset', 'Body3DMviewDirectShelfDataset',
     'Body3DMviewDirectCampusDataset', 'NVGestureDataset', 'WholeBody3DH3WBDataset',
     'WholeBodyWoFace3DH3WBDataset',
-    'Hand3DH3WBDataset',
+    'Hand3DH3WBDataset', 'Foot3DH3WBDataset'
 ]
