@@ -158,7 +158,6 @@ def main():
             frames = collect_multi_frames(
                 video, frame_id, indices, args.online)
 
-        print("len(hand_results)", len(hand_results))
         # test a single image, with a list of bboxes.
         keypoints2d_results, returned_outputs = inference_top_down_pose_model(
             keypoints2d_model,
