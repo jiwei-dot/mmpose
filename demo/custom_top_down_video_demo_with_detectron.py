@@ -57,7 +57,10 @@ def main():
         default=0.3,
         help='Bounding box score threshold')
     parser.add_argument(
-        '--kpt-thr', type=float, default=0.3, help='Keypoint score threshold')
+        '--kpt-thr', 
+        type=float, 
+        default=0.1, 
+        help='Keypoint score threshold')
     parser.add_argument(
         '--radius',
         type=int,
@@ -93,7 +96,7 @@ def main():
     cfg = get_cfg()
     cfg.merge_from_file(args.det_config)
     cfg.MODEL.WEIGHTS = args.det_checkpoint
-    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.3
+    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = args.bbox_thr
     hand_detect_model = DefaultPredictor(cfg)
     
     print("Creating 2d keypoint estimator...")
@@ -175,7 +178,7 @@ def main():
             keypoints2d_results,
             dataset=dataset,
             dataset_info=dataset_info,
-            kpt_score_thr=0.1,
+            kpt_score_thr=args.kpt_thr,
             radius=args.radius,
             thickness=args.thickness,
             show=False)
