@@ -207,7 +207,7 @@ def main():
 
     if save_out_video:
         fps = video.fps
-        size = (video.width, video.height)
+        size = (video.width * 2, video.height)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         videoWriter = cv2.VideoWriter(
             os.path.join(args.out_video_root, f'vis_{os.path.basename(args.video_path)}'), 
