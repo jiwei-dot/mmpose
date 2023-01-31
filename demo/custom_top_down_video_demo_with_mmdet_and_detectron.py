@@ -241,6 +241,11 @@ def main():
         mmdet_results = inference_detector(person_detect_model, cur_frame)
         person_results = process_mmdet_results(mmdet_results, args.det_cat_id)
         temp_bboxes = np.array([box['bbox'] for box in person_results])
+        
+        # bug here !!!
+        if len(temp_bboxes) == 0:
+            continue
+        
         assert temp_bboxes.shape[1] == 5
         valid_idx = np.where(temp_bboxes[:, 4] > args.bbox_thr)[0]
         person_results = [person_results[i] for i in valid_idx]
