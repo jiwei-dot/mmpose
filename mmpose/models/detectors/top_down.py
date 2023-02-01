@@ -282,6 +282,12 @@ class TopDown(BasePose):
             if 'bbox' in res:
                 bbox_result.append(res['bbox'])
                 bbox_labels.append(res.get('label', None))
+            if res.get('left_hand_valid', False):
+                bbox_result.append(res['left_hand_bbox'])
+                bbox_labels.append('left_hand_bbox')
+            if res.get('right_hand_valid', False):
+                bbox_result.append(res['right_hand_bbox']) 
+                bbox_labels.append('right_hand_bbox')
             pose_result.append(res['keypoints'])
 
         if bbox_result:
