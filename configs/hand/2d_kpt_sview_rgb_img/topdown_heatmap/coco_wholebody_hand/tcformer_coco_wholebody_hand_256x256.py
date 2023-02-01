@@ -9,8 +9,8 @@ _base_ = [
 evaluation = dict(interval=10, metric=['PCK', 'AUC', 'EPE'], save_best='AUC')
 
 optimizer = dict(
-    type='AdamW',
-    lr=5e-4,
+    type='Adam',
+    lr=5e-4 / 2,
     betas=(0.9, 0.999),
     weight_decay=0.01,
 )
@@ -132,7 +132,7 @@ test_pipeline = val_pipeline
 
 data_root = 'data/coco'
 data = dict(
-    samples_per_gpu=8,
+    samples_per_gpu=16,
     workers_per_gpu=2,
     val_dataloader=dict(samples_per_gpu=32),
     test_dataloader=dict(samples_per_gpu=32),
