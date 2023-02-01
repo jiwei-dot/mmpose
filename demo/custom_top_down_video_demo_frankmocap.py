@@ -156,6 +156,9 @@ def main():
         '--use-oks-tracking', action='store_true', help='Using OKS tracking')
     parser.add_argument(
         '--tracking-thr', type=float, default=0.3, help='Tracking threshold')
+    
+    parser.add_argument(
+        '--save-pkl-res', action='store_true', help='save 2d keypoints in pkl file')
 
 
     args = parser.parse_args()
@@ -240,6 +243,7 @@ def main():
 
     next_id = 0
     person_keypoints2d_results = []
+    pose_det_results_list = []
     
     print('Running inference...')
     for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
@@ -480,10 +484,18 @@ def main():
         
         cv2.imwrite(f'workspace/images/{frame_id}.jpg', vis_frame)
         videoWriter.write(vis_frame)
+        
+        pose_det_results_list.append(person_keypoints2d_results)
         # ---------------------------------------------------------------------------------
                     
-    videoWriter.release()        
-                    
+    videoWriter.release()  
+    
+    if args.save_pkl_res:
+        import pickle
+        filename = args.video_path.split('/')[-1].split('.')[0]
+        with open(f'{filename}.pkl', 'wb') as fin:
+            pickle.dump(pose_det_results_list, fin)
+             
 
 if __name__ == '__main__':
     main()
