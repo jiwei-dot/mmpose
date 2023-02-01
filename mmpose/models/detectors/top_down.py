@@ -284,10 +284,20 @@ class TopDown(BasePose):
                 bbox_labels.append(res.get('label', None))
             if res.get('left_hand_valid', False):
                 bbox_result.append(res['left_hand_bbox'])
-                bbox_labels.append('left_hand_bbox')
+                bbox_labels.append('left_hand')
+            elif len(res['left_hand_bbox']) != 0:
+                # 利用前一帧修正
+                bbox_result.append(res['left_hand_bbox'])
+                bbox_labels.append('left_hand_lastframe')
+                
             if res.get('right_hand_valid', False):
                 bbox_result.append(res['right_hand_bbox']) 
-                bbox_labels.append('right_hand_bbox')
+                bbox_labels.append('right_hand')
+            elif len(res['right_hand_bbox']) != 0:
+                # 利用前一帧修正
+                bbox_result.append(res['right_hand_bbox'])
+                bbox_labels.append('right_hand_lastframe')
+            
             pose_result.append(res['keypoints'])
 
         if bbox_result:
