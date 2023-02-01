@@ -6,6 +6,7 @@ from argparse import ArgumentParser
 import torch
 import cv2
 import mmcv
+import copy
 
 from mmpose.apis import (collect_multi_frames, inference_top_down_pose_model,
                          init_pose_model, process_mmdet_results,
@@ -115,7 +116,7 @@ def main():
     parser.add_argument(
         '--kpt-thr', 
         type=float, 
-        default=-1, 
+        default=0, 
         help='Keypoint score threshold')
     
     parser.add_argument(
@@ -127,7 +128,7 @@ def main():
     parser.add_argument(
         '--radius',
         type=int,
-        default=4,
+        default=3,
         help='Keypoint radius for visualization')
     
     parser.add_argument(
@@ -239,6 +240,7 @@ def main():
 
     next_id = 0
     person_keypoints2d_results = []
+    
     print('Running inference...')
     for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
         
@@ -246,18 +248,16 @@ def main():
         
         ### 1. person detection
         # ----------------------------------------------------------------------
-        
         mmdet_results = inference_detector(person_detect_model, cur_frame)
         # mmdet_results: [N1x5, N2x5, ...]
         person_results = process_mmdet_results(mmdet_results, args.det_cat_id)
         # person_results: 当检测到物体时为[{bbox: shape[5, ]}, {bbox: shape[5, ]}, ...]， 否则为空list
 
-       
         if len(person_results) == 0:
             # 没检测到物体, do something
-            # todo
-            pass
+            raise NotImplementedError
         # ----------------------------------------------------------------------
+ 
  
         if args.use_multi_frames:
             frames = collect_multi_frames(
@@ -271,7 +271,6 @@ def main():
         
         ### 2. for every person, do wholebody_2d keypoints detection
         # ---------------------------------------------------------------------------------
-
         person_keypoints2d_results, _ = inference_top_down_pose_model(
             person_keypoints2d_model,
             frames if args.use_multi_frames else cur_frame,
@@ -286,7 +285,7 @@ def main():
         
         person_keypoints2d_results, next_id = get_track_id(
             person_keypoints2d_results,
-            person_keypoints2d_results_last,
+            copy.deepcopy(person_keypoints2d_results_last),
             next_id,
             use_oks=args.use_oks_tracking,
             tracking_thr=args.tracking_thr)
@@ -357,19 +356,40 @@ def main():
                     left_id = np.argmin(dist_left_arm)
                     right_id = np.argmin(dist_right_arm)
                     
-                    if dist_left_arm[left_id] < float('inf'):
-                        person_keypoints2d_results[idx]['left_hand_bbox'] = hand_bboxes[left_id]
-                        person_keypoints2d_results[idx]['left_hand_valid'] = True
+                    if left_id != right_id:
+                        if dist_left_arm[left_id] < float('inf'):
+                            person_keypoints2d_results[idx]['left_hand_bbox'] = hand_bboxes[left_id]
+                            person_keypoints2d_results[idx]['left_hand_valid'] = True
+                        else:
+                            person_keypoints2d_results[idx]['left_hand_bbox'] = np.empty((0, 5))
+                            person_keypoints2d_results[idx]['left_hand_valid'] = False
+                            
+                        if dist_right_arm[right_id] < float('inf'):
+                            person_keypoints2d_results[idx]['right_hand_bbox'] = hand_bboxes[right_id]
+                            person_keypoints2d_results[idx]['right_hand_valid'] = True
+                        else:
+                            person_keypoints2d_results[idx]['right_hand_bbox'] = np.empty((0, 5))
+                            person_keypoints2d_results[idx]['right_hand_valid'] = False 
                     else:
+                        assign_hand = None
+                        assign_id = None
                         person_keypoints2d_results[idx]['left_hand_bbox'] = np.empty((0, 5))
                         person_keypoints2d_results[idx]['left_hand_valid'] = False
-                        
-                    if dist_right_arm[right_id] < float('inf'):
-                        person_keypoints2d_results[idx]['right_hand_bbox'] = hand_bboxes[right_id]
-                        person_keypoints2d_results[idx]['right_hand_valid'] = True
-                    else:
                         person_keypoints2d_results[idx]['right_hand_bbox'] = np.empty((0, 5))
-                        person_keypoints2d_results[idx]['right_hand_valid'] = False
+                        person_keypoints2d_results[idx]['right_hand_valid'] = False  
+                        
+                        if dist_left_arm[left_id] < dist_right_arm[right_id]:
+                            assign_hand = 'left_hand'
+                            assign_id = left_id
+                            
+                        elif dist_left_arm[left_id] > dist_right_arm[right_id]:
+                            assign_hand = 'right_hand'
+                            assign_id = right_id
+                    
+                        if assign_hand is not None:
+                            person_keypoints2d_results[idx][assign_hand+"_bbox"] = hand_bboxes[assign_id]
+                            person_keypoints2d_results[idx][assign_hand+"_valid"] = True
+                             
                         
         # person_keypoints2d_results: [{bbox, keypoints, left_hand_box, left_hand_valid, right_hand_box, area, track_id}, ...]
         # left_hand_box, right_hand_box大小可能为[0x5]
@@ -405,6 +425,8 @@ def main():
         tmp_idx = 0
         for person in person_keypoints2d_results:
             # person: dict(bbox, keypoints, area, track_id, left_hand_bbox, left_hand_valid, right_hand_bbox, right_hand_valid)
+            # 下面的代码是在每个person中加入`left_hand_keypoints`和`right_hand_keypoints`
+            # left_hand_valid为True时表示当前帧检测到人手
             if person['left_hand_valid']:
                 person['left_hand_keypoints'] = hand_keypoints2d_results[tmp_idx]['keypoints']
                 tmp_idx += 1
@@ -414,14 +436,15 @@ def main():
                     if person_last['track_id'] == person['track_id']:
                         tmp_person = person_last
                         break
-                if tmp_person is None:
-                    # 没检测到hand, 同时上一帧也没有对应的信息
-                    person['left_hand_keypoints'] = torch.empty((0, 3), device=args.device)
+                if tmp_person is None or not tmp_person['left_hand_valid']:
+                    # 没检测到hand, 同时上一帧也没有对应的信息或者上一帧没检测到手, 用tcformer结果代替
+                    person['left_hand_keypoints'] = person['keypoints'][91: 112]
+                    # raise NotImplementedError     
                 else:
-                    # 没检测到hand, 但上一帧有对应的信息
+                    # 利用前一帧修正
                     person['left_hand_keypoints'] = tmp_person['left_hand_keypoints']
                     person['left_hand_bbox'] = tmp_person['left_hand_bbox']
-                    person['left_hand_valid'] = True
+                    # person['left_hand_valid'] = False
                   
             if person['right_hand_valid']:
                 person['right_hand_keypoints'] = hand_keypoints2d_results[tmp_idx]['keypoints']
@@ -432,19 +455,18 @@ def main():
                     if person_last['track_id'] == person['track_id']:
                         tmp_person = person_last
                         break
-                if tmp_person is None:
-                    person['right_hand_keypoints'] = torch.empty((0, 3), device=args.device)
+                if tmp_person is None or not tmp_person['right_hand_valid']:
+                    person['right_hand_keypoints'] = person['keypoints'][112: 133]
+                    # raise NotImplementedError
                 else:
+                    # 利用前一帧修正
                     person['right_hand_keypoints'] = tmp_person['right_hand_keypoints']
                     person['right_hand_bbox'] = tmp_person['right_hand_bbox']
-                    person['right_hand_valid'] = True
+                    # person['right_hand_valid'] = False
             
-            if person['left_hand_valid']:
-                person['keypoints'][91: 112] = person['left_hand_keypoints'] 
-            
-            if person['right_hand_valid']:
-                person['keypoints'][112: 133] = person['right_hand_keypoints']
-
+            person['keypoints'][91: 112] = person['left_hand_keypoints'] 
+            person['keypoints'][112: 133] = person['right_hand_keypoints']
+    
         vis_frame = vis_pose_result(
             person_keypoints2d_model,
             cur_frame,
