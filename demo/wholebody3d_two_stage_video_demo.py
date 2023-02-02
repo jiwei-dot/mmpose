@@ -5,6 +5,7 @@ import os.path as osp
 import cv2
 import numpy as np
 from argparse import ArgumentParser
+import torch
 
 
 import mmcv
@@ -63,95 +64,165 @@ def coco_to_rfoot(keypoints):
     return keypoints[[16, 20, 21, 22], ...]
 
 
-def main():
+def get_parser():
+    
     parser = ArgumentParser()
     
-    # detection
+    
+    ## --------------------- config and checkpoint file setting ---------------------------
+    
+    # for person detection
+    # --------------------------------------------------------------------------------------
     parser.add_argument(
-        '--det_config', 
+        '--person_det_config', 
         type=str,
         default='demo/mmdetection_cfg/faster_rcnn_r50_fpn_coco.py',
-        help='Config file for detection')
+        help='Config file for person detection')
+    
     parser.add_argument(
-        '--det_checkpoint', 
+        '--person_det_checkpoint', 
         type=str,
         default='workspace/checkpoints/faster_rcnn_r50_fpn_1x_coco_20200130-047c8118.pth',
-        help='Checkpoint file for detection')
+        help='Checkpoint file for person detection')
     
-    # 2D keypoints
+    
+    # for hand detection
+    # --------------------------------------------------------------------------------------
     parser.add_argument(
-        '--pose_detector_config',
+        '--hand_det_config', 
+        default='workspace/configs/faster_rcnn_X_101_32x8d_FPN_3x_100DOH.yaml',
+        type=str,
+        help='Config file for hand detection')
+    
+    parser.add_argument(
+        '--hand_det_checkpoint', 
+        default='workspace/checkpoints/model_0529999.pth',
+        type=str,
+        help='Checkpoint file for hand detection')
+    
+    
+    # for wholebody 2d keypoints
+    # --------------------------------------------------------------------------------------
+    parser.add_argument(
+        '--wholebody2d_pose_config',
         type=str,
         default='configs/wholebody/2d_kpt_sview_rgb_img/topdown_heatmap/coco-wholebody/tcformer_coco_wholebody_256x192.py',
-        help='Config file for the 1st stage 2D pose detector')
+        help='Config file for the wholebody 2D pose detector')
     parser.add_argument(
-        '--pose_detector_checkpoint',
+        '--wholebody2d_pose_checkpoint',
         type=str,
         default='workspace/checkpoints/tcformer_coco-wholebody_256x192-a0720efa_20220627.pth',
-        help='Checkpoint file for the 1st stage 2D pose detector')
+        help='Checkpoint file for the wholebody 2D pose detector')
     
-    # 3D keypoints: body
+    
+    # for hand 2d keypoints
+    # --------------------------------------------------------------------------------------
     parser.add_argument(
-        '--body_lifter_config',
+        '--hand2d_pose_config', 
+        default="configs/hand/2d_kpt_sview_rgb_img/topdown_heatmap/coco_wholebody_hand/res50_coco_wholebody_hand_256x256.py",
+        type=str,
+        help='Config file for hand 2D pose detector')
+    
+    parser.add_argument(
+        '--hand2d_pose_checkpoint', 
+        default='workspace/checkpoints/res50_coco_wholebody_hand_256x256-8dbc750c_20210908.pth',
+        type=str,
+        help='Checkpoint file for hand 2D pose detector')
+    
+    
+    # for body 3d keypoints
+    # --------------------------------------------------------------------------------------
+    parser.add_argument(
+        '--body3d_lifter_config',
         type=str,
         default='configs/body/3d_kpt_sview_rgb_img/pose_lift/h36m/simplebaseline3d_h36m.py',
         help='Config file for the 2nd stage body lifter model')
+    
     parser.add_argument(
-        '--body_lifter_checkpoint',
+        '--body3d_lifter_checkpoint',
         type=str,
         default='workspace/checkpoints/simple3Dbaseline_h36m-f0ad73a4_20210419.pth',
         help='Checkpoint file for the 2nd stage body lifter model')
     
-    # left_hand
+    
+    # 之后的工作: 左和右用同一个模型
+    # for left_hand 3d keypoints
+    # --------------------------------------------------------------------------------------
     parser.add_argument(
-        '--left_hand_lifter_config',
+        '--lefthand3d_lifter_config',
         type=str,
         default='configs/hand/3d_kpt_sview_rgb_img/simplebaseline3d/simplebaseline3d_h3wb_left_hand.py',
         help='Config file for the 2nd stage left_hand lifter model')
+    
     parser.add_argument(
-        '--left_hand_lifter_checkpoint',
+        '--lefthand3d_lifter_checkpoint',
         type=str,
         default='work_dirs/simplebaseline3d_h3wb_left_hand/best_MPJPE_epoch_170.pth',
         help='Checkpoint file for the 2nd stage left_hand lifter model')
     
-    # right_hand
+    
+    # for right_hand 3d keypoints
+    # --------------------------------------------------------------------------------------
     parser.add_argument(
-        '--right_hand_lifter_config',
+        '--righthand3d_lifter_config',
         type=str,
         default='configs/hand/3d_kpt_sview_rgb_img/simplebaseline3d/simplebaseline3d_h3wb_right_hand.py',
         help='Config file for the 2nd stage right_hand lifter model')
+    
     parser.add_argument(
-        '--right_hand_lifter_checkpoint',
+        '--righthand3d_lifter_checkpoint',
         type=str,
         default='work_dirs/simplebaseline3d_h3wb_right_hand/best_MPJPE_epoch_110.pth',
         help='Checkpoint file for the 2nd stage right_hand lifter model')
     
-    # left_foot
+    
+    # for left_foot 3d keypoints
+    # --------------------------------------------------------------------------------------
     parser.add_argument(
-        '--left_foot_lifter_config',
+        '--leftfoot3d_lifter_config',
         type=str,
         default='configs/foot/3d_kpt_sview_rgb_img/pose_lift/h3wb/simplebaseline3d_h3wb_left_foot.py',
         help='Config file for the 2nd stage left_foot lifter model')
+    
     parser.add_argument(
-        '--left_foot_lifter_checkpoint',
+        '--leftfoot3d_lifter_checkpoint',
         type=str,
         default='work_dirs/simplebaseline3d_h3wb_left_foot/best_MPJPE_epoch_140.pth',
         help='Checkpoint file for the 2nd stage left_foot lifter model')
     
-    # # right_foot
+    
+    # for right_foot 3d keypoints
+    # --------------------------------------------------------------------------------------
     parser.add_argument(
-        '--right_foot_lifter_config',
+        '--rightfoot3d_lifter_config',
         type=str,
         default='configs/foot/3d_kpt_sview_rgb_img/pose_lift/h3wb/simplebaseline3d_h3wb_right_foot.py',
         help='Config file for the 2nd stage right_foot lifter model')
+    
     parser.add_argument(
-        '--right_foot_lifter_checkpoint',
+        '--rightfoot3d_lifter_checkpoint',
         type=str,
         default='work_dirs/simplebaseline3d_h3wb_right_foot/best_MPJPE_epoch_120.pth',
         help='Checkpoint file for the 2nd stage right_foot lifter model')
     
-    parser.add_argument(
-        '--video-path', type=str, default='', help='Video path')
+    ## --------------------- config and checkpoint file setting ---------------------------
+    
+      
+    parser.add_argument('--video-path', type=str, default='', help='Video path')
+    
+    
+    # 针对某一视频，使用已经检测好的wholebody2d文件
+    parser.add_argument('--use-pkl', action='store_true')
+    parser.add_argument('--pkl-file', type=str, default='')
+    
+    
+    # 每帧只处理一个人
+    parser.add_argument('--single-person', action='store_false')
+    
+    
+    # 针对手部获取包围框，True时使用wholebody2d的检测结果，否则使用单独一个手的检测模型
+    parser.add_argument('--fast-mode', action='store_true')
+    
     
     parser.add_argument(
         '--rebase-keypoint-height',
@@ -204,6 +275,12 @@ def main():
         type=float,
         default=0.9,
         help='Bounding box score threshold')
+    
+    parser.add_argument(
+        '--nms-thr',
+        type=float,
+        default=0.5,
+        help='Nms threshold')
 
     parser.add_argument('--kpt-thr', type=float, default=0.3)
     parser.add_argument(
@@ -246,124 +323,273 @@ def main():
         help='inference mode. If set to True, can not use future frame'
         'information when using multi frames for inference in the 2D pose'
         'detection stage. Default: False.')
+    
+    return parser
 
-    assert has_mmdet, 'Please install mmdet to run the demo.'
 
+def get_wholebody2d(args, video):
+    pose_det_results_list = []
+    
+    person_det_model = init_detector(
+        args.person_det_config, 
+        args.person_det_checkpoint, 
+        device=args.device.lower())
+    
+    wholebody2d_pose_model = init_pose_model(
+        args.wholebody2d_pose_config, 
+        args.wholebody2d_pose_checkpoint, 
+        device=args.device.lower())
+    
+    hand_det_model = None
+    hand2d_pose_model = None
+    
+    next_id = 0
+    person_keypoints2d_results = []
+    for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)): 
+        person_keypoints2d_results_last = person_keypoints2d_results
+        mmdet_results = inference_detector(person_det_model, cur_frame)
+        person_results = process_mmdet_results(mmdet_results, args.det_cat_id)
+        if len(person_results) == 0:
+            pose_det_results_list.append([])
+            continue
+        
+        if args.single_person:
+            person_results = [person_results[0], ]
+        
+        person_keypoints2d_results, _ = inference_top_down_pose_model(
+            wholebody2d_pose_model,
+            cur_frame,                      # 单帧预测
+            person_results,
+            bbox_thr=args.bbox_thr,
+            format='xyxy',
+            dataset=wholebody2d_pose_model.cfg.data['test']['type'],
+            dataset_info=DatasetInfo(wholebody2d_pose_model.cfg.data['test'].get('dataset_info', None)),
+            return_heatmap=False,
+            outputs=None)
+        
+        person_keypoints2d_results, next_id = get_track_id(
+            person_keypoints2d_results,
+            copy.deepcopy(person_keypoints2d_results_last),
+            next_id,
+            use_oks=args.use_oks_tracking,
+            tracking_thr=args.tracking_thr)
+        
+        if args.fast_mode:
+            raise NotImplementedError
+        else:
+            if hand_det_model is None:
+                from detectron2.config import get_cfg
+                from detectron2.engine import DefaultPredictor
+                cfg = get_cfg()
+                cfg.merge_from_file(args.hand_det_config)
+                cfg.MODEL.DEVICE = args.device
+                cfg.MODEL.WEIGHTS = args.hand_det_checkpoint
+                cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = args.bbox_thr
+                cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = args.nms_thr
+                hand_det_model = DefaultPredictor(cfg)
+            
+            if hand2d_pose_model is None:
+                hand2d_pose_model = init_pose_model(
+                    args.hand2d_pose_config, 
+                    args.hand2d_pose_checkpoint, 
+                    device=args.device.lower())
+        
+        hand_res = hand_det_model(cur_frame)
+        # hand_res: dict
+        hand_bboxes_coords = hand_res['instances'].pred_boxes.tensor
+        hand_bboxes_scores = hand_res['instances'].scores
+        if hand_bboxes_coords.shape[0] == 0:
+            hand_bboxes = torch.empty((0, 5), 
+                dtype=hand_bboxes_coords.dtype, device=hand_bboxes_coords.device)
+        else:
+            hand_bboxes = torch.cat(
+                [hand_bboxes_coords, hand_bboxes_scores.unsqueeze(-1)],  dim=-1)
+        hand_bboxes = hand_bboxes.cpu().numpy()
+    
+        num_hand_bboxes = len(hand_bboxes)
+        if num_hand_bboxes == 0:
+            for idx, person in enumerate(person_keypoints2d_results):
+                person_keypoints2d_results[idx]['left_hand_bbox'] = np.empty((0, 5))
+                person_keypoints2d_results[idx]['left_hand_valid'] = False
+                person_keypoints2d_results[idx]['right_hand_bbox'] = np.empty((0, 5))
+                person_keypoints2d_results[idx]['right_hand_valid'] = False
+        else:
+            for idx, person in enumerate(person_keypoints2d_results):  
+                
+                dist_left_arm = np.ones((num_hand_bboxes, )) * float('inf')
+                dist_right_arm = np.ones((num_hand_bboxes, )) * float('inf')
+                person_keypoints2d = person['keypoints']
+                
+                # left arm
+                if person_keypoints2d[9][-1] > args.kpt_thr and person_keypoints2d[7][-1] > args.kpt_thr:
+                    dist_wrist_elbow = np.linalg.norm(person_keypoints2d[9][:2] - person_keypoints2d[7][:2])
+                    c_x = (hand_bboxes[:, 0] + hand_bboxes[:, 2]) / 2
+                    c_y = (hand_bboxes[:, 1] + hand_bboxes[:, 3]) / 2
+                    center = np.stack((c_x, c_y), axis=-1)
+                    dist_bbox_ankle = np.linalg.norm(center - person_keypoints2d[9][:2], axis=-1)
+                    mask = dist_bbox_ankle < dist_wrist_elbow * 1.5
+                    dist_left_arm[mask] = dist_bbox_ankle[mask]
+
+                # right arm
+                if person_keypoints2d[10][-1] > args.kpt_thr and person_keypoints2d[8][-1] > args.kpt_thr:
+                    dist_wrist_elbow = np.linalg.norm(person_keypoints2d[10][:2] - person_keypoints2d[8][:2])
+                    c_x = (hand_bboxes[:, 0] + hand_bboxes[:, 2]) / 2
+                    c_y = (hand_bboxes[:, 1] + hand_bboxes[:, 3]) / 2
+                    center = np.stack((c_x, c_y), axis=-1)
+                    dist_bbox_ankle = np.linalg.norm(center - person_keypoints2d[10][:2], axis=-1)
+                    mask = dist_bbox_ankle < dist_wrist_elbow * 1.5
+                    dist_right_arm[mask] = dist_bbox_ankle[mask]
+                    
+                left_id = np.argmin(dist_left_arm)
+                right_id = np.argmin(dist_right_arm)
+                
+                if left_id != right_id:
+                    if dist_left_arm[left_id] < float('inf'):
+                        person_keypoints2d_results[idx]['left_hand_bbox'] = hand_bboxes[left_id]
+                        person_keypoints2d_results[idx]['left_hand_valid'] = True
+                    else:
+                        person_keypoints2d_results[idx]['left_hand_bbox'] = np.empty((0, 5))
+                        person_keypoints2d_results[idx]['left_hand_valid'] = False
+                        
+                    if dist_right_arm[right_id] < float('inf'):
+                        person_keypoints2d_results[idx]['right_hand_bbox'] = hand_bboxes[right_id]
+                        person_keypoints2d_results[idx]['right_hand_valid'] = True
+                    else:
+                        person_keypoints2d_results[idx]['right_hand_bbox'] = np.empty((0, 5))
+                        person_keypoints2d_results[idx]['right_hand_valid'] = False 
+                else:
+                    assign_hand = None
+                    assign_id = None
+                    person_keypoints2d_results[idx]['left_hand_bbox'] = np.empty((0, 5))
+                    person_keypoints2d_results[idx]['left_hand_valid'] = False
+                    person_keypoints2d_results[idx]['right_hand_bbox'] = np.empty((0, 5))
+                    person_keypoints2d_results[idx]['right_hand_valid'] = False  
+                    
+                    if dist_left_arm[left_id] < dist_right_arm[right_id]:
+                        assign_hand = 'left_hand'
+                        assign_id = left_id
+                        
+                    elif dist_left_arm[left_id] > dist_right_arm[right_id]:
+                        assign_hand = 'right_hand'
+                        assign_id = right_id
+                
+                    if assign_hand is not None:
+                        person_keypoints2d_results[idx][assign_hand+"_bbox"] = hand_bboxes[assign_id]
+                        person_keypoints2d_results[idx][assign_hand+"_valid"] = True
+    
+        hand_results = []
+        for person in person_keypoints2d_results:
+            if person['left_hand_valid']:
+                hand_results.append({'bbox': person['left_hand_bbox']})
+            if person['right_hand_valid']:
+                hand_results.append({'bbox': person['right_hand_bbox']})
+        
+        hand_keypoints2d_results, _ = inference_top_down_pose_model(
+            hand2d_pose_model,
+            cur_frame,
+            hand_results,
+            bbox_thr=args.bbox_thr,
+            format='xyxy',
+            dataset=hand2d_pose_model.cfg.data['test']['type'],
+            dataset_info=DatasetInfo(hand2d_pose_model.cfg.data['test'].get('dataset_info', None)),
+            return_heatmap=False,
+            outputs=None)
+        
+        tmp_idx = 0
+        for person in person_keypoints2d_results:
+            # person: dict(bbox, keypoints, area, track_id, left_hand_bbox, left_hand_valid, right_hand_bbox, right_hand_valid)
+            # 下面的代码是在每个person中加入`left_hand_keypoints`和`right_hand_keypoints`
+            # left_hand_valid为True时表示当前帧检测到人手
+            if person['left_hand_valid']:
+                person['left_hand_keypoints'] = hand_keypoints2d_results[tmp_idx]['keypoints']
+                tmp_idx += 1
+            else:
+                tmp_person = None
+                for person_last in person_keypoints2d_results_last:
+                    if person_last['track_id'] == person['track_id']:
+                        tmp_person = person_last
+                        break
+                if tmp_person is None or not tmp_person['left_hand_valid']:
+                    # 没检测到hand, 同时上一帧也没有对应的信息或者上一帧没检测到手, 用tcformer结果代替
+                    person['left_hand_keypoints'] = person['keypoints'][91: 112]
+                    # raise NotImplementedError     
+                else:
+                    # 利用前一帧修正
+                    person['left_hand_keypoints'] = tmp_person['left_hand_keypoints']
+                    person['left_hand_bbox'] = tmp_person['left_hand_bbox']
+                    # person['left_hand_valid'] = False
+                  
+            if person['right_hand_valid']:
+                person['right_hand_keypoints'] = hand_keypoints2d_results[tmp_idx]['keypoints']
+                tmp_idx += 1
+            else:
+                tmp_person = None
+                for person_last in person_keypoints2d_results_last:
+                    if person_last['track_id'] == person['track_id']:
+                        tmp_person = person_last
+                        break
+                if tmp_person is None or not tmp_person['right_hand_valid']:
+                    person['right_hand_keypoints'] = person['keypoints'][112: 133]
+                    # raise NotImplementedError
+                else:
+                    # 利用前一帧修正
+                    person['right_hand_keypoints'] = tmp_person['right_hand_keypoints']
+                    person['right_hand_bbox'] = tmp_person['right_hand_bbox']
+                    # person['right_hand_valid'] = False
+            
+            person['keypoints'][91: 112] = person['left_hand_keypoints'] 
+            person['keypoints'][112: 133] = person['right_hand_keypoints']
+            
+        pose_det_results_list.append(person_keypoints2d_results)
+
+    return pose_det_results_list
+    
+
+
+def main():
+    
+    parser = get_parser()
     args = parser.parse_args()
-    assert args.show or (args.out_video_root != '')
-    assert args.det_config is not None
-    assert args.det_checkpoint is not None
     
     video = mmcv.VideoReader(args.video_path)
     assert video.opened, f'Failed to load video file {args.video_path}'
     
     print('Stage 1: 2D pose detection.')
-
-    print('Initializing model...')
-    
-    person_det_model = init_detector(
-        args.det_config, 
-        args.det_checkpoint, 
-        device=args.device.lower())
-    
-    pose_det_model = init_pose_model(
-        args.pose_detector_config,
-        args.pose_detector_checkpoint,
-        device=args.device.lower())
-    
-    assert isinstance(pose_det_model, TopDown), 'Only "TopDown"' \
-        'model is supported for the 1st stage (2D pose detection)'
-        
-    if args.use_multi_frames:
-        assert 'frame_indices_test' in pose_det_model.cfg.data.test.data_cfg
-        indices = pose_det_model.cfg.data.test.data_cfg['frame_indices_test']
-        
-    pose_det_dataset = pose_det_model.cfg.data['test']['type']
-    # get datasetinfo
-    dataset_info = pose_det_model.cfg.data['test'].get('dataset_info', None)
-    if dataset_info is None:
-        warnings.warn(
-            'Please set `dataset_info` in the config.'
-            'Check https://github.com/open-mmlab/mmpose/pull/663 for details.',
-            DeprecationWarning)
+    # -------------------------------------------------------------------------
+    if args.use_pkl:
+        assert args.pkl_file, 'please provide pre-detected pkl file'
+        import pickle
+        with open(args.pkl_file, 'rb') as fin:
+            pose_det_results_list = pickle.load(fin)
     else:
-        dataset_info = DatasetInfo(dataset_info)
-        
-    pose_det_results_list = []
-    next_id = 0
-    pose_det_results = []
+        pose_det_results_list = get_wholebody2d(args, video)
 
-    # whether to return heatmap, optional
-    return_heatmap = False
 
-    # return the output of some desired layers,
-    # e.g. use ('backbone', ) to return backbone feature
-    output_layer_names = None
-
-    print('Running 2D pose detection inference...')
-    for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
-        pose_det_results_last = pose_det_results
-
-        # test a single image, the resulting box is (x1, y1, x2, y2)
-        mmdet_results = inference_detector(person_det_model, cur_frame)
-
-        # keep the person class bounding boxes.
-        person_det_results = process_mmdet_results(mmdet_results,
-                                                   args.det_cat_id)
-
-        if args.use_multi_frames:
-            frames = collect_multi_frames(video, frame_id, indices,
-                                          args.online)
-
-        # make person results for current image
-        pose_det_results, _ = inference_top_down_pose_model(
-            pose_det_model,
-            frames if args.use_multi_frames else cur_frame,
-            person_det_results,
-            bbox_thr=args.bbox_thr,
-            format='xyxy',
-            dataset=pose_det_dataset,
-            dataset_info=dataset_info,
-            return_heatmap=return_heatmap,
-            outputs=output_layer_names)
-
-        # get track id for each person instance
-        pose_det_results, next_id = get_track_id(
-            pose_det_results,
-            pose_det_results_last,
-            next_id,
-            use_oks=args.use_oks_tracking,
-            tracking_thr=args.tracking_thr)
-
-        pose_det_results_list.append(copy.deepcopy(pose_det_results))
-
-    # Second stage: Pose lifting
     print('Stage 2: 2D-to-3D pose lifting.')
-
-    print('Initializing model...')
+    # ---------------------------------------------------------------------------
     body_lift_model = init_pose_model(
-        args.body_lifter_config,
-        args.body_lifter_checkpoint,
+        args.body3d_lifter_config,
+        args.body3d_lifter_checkpoint,
         device=args.device.lower())
     
     lhand_lift_model = init_pose_model(
-        args.left_hand_lifter_config,
-        args.left_hand_lifter_checkpoint,
+        args.lefthand3d_lifter_config,
+        args.lefthand3d_lifter_checkpoint,
         device=args.device.lower())
     
     rhand_lift_model = init_pose_model(
-        args.right_hand_lifter_config,
-        args.right_hand_lifter_checkpoint,
+        args.righthand3d_lifter_config,
+        args.righthand3d_lifter_checkpoint,
         device=args.device.lower())
     
     lfoot_lift_model = init_pose_model(
-        args.left_foot_lifter_config,
-        args.left_foot_lifter_checkpoint,
+        args.leftfoot3d_lifter_config,
+        args.leftfoot3d_lifter_checkpoint,
         device=args.device.lower())
     
     rfoot_lift_model = init_pose_model(
-        args.right_foot_lifter_config,
-        args.right_foot_lifter_checkpoint,
+        args.rightfoot3d_lifter_config,
+        args.rightfoot3d_lifter_checkpoint,
         device=args.device.lower())
     
     assert isinstance(body_lift_model, PoseLifter)
