@@ -1,3 +1,6 @@
+import random
+random.seed(0)
+
 _base_ = [
     '../../../../_base_/default_runtime.py',
     '../../../../_base_/datasets/coco_wholebody_hand.py'
@@ -71,6 +74,7 @@ train_pipeline = [
     dict(
         type='TopDownGetRandomScaleRotation', rot_factor=90, scale_factor=0.3),
     dict(type='TopDownAffine'),
+    dict(type='Corrupt', corruption='motion_blur', severity=random.choice(range(1, 6)), prob=0.3),
     dict(type='ToTensor'),
     dict(
         type='NormalizeTensor',
