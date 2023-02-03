@@ -351,6 +351,7 @@ class PoseLifter(BasePose):
             img = mmcv.imread(img)
 
             bbox_result = []
+            label_result = []
             pose_input_2d = []
             for res in result:
                 if 'bbox' in res:
@@ -359,6 +360,21 @@ class PoseLifter(BasePose):
                         assert bbox.ndim == 2
                         bbox = bbox[-1]  # Get bbox from the last frame
                     bbox_result.append(bbox)
+                    label_result.append('person')
+                if 'left_hand_bbox' in res or 'right_hand_bbox' in res:
+                    if res['left_hand_valid']:
+                        bbox_result.append(res['left_hand_bbox'])
+                        label_result.append('left_hand')
+                    elif len(res['left_hand_bbox']) != 0:
+                        bbox_result.append(res['left_hand_bbox'])
+                        label_result.append('left_hand_lastframe')
+                    if res['right_hand_valid']:
+                        bbox_result.append(res['right_hand_bbox'])
+                        label_result.append('right_hand')
+                    elif len(res['right_hand_bbox']) != 0:
+                        bbox_result.append(res['right_hand_bbox'])
+                        label_result.append('right_hand_lastframe')
+                    
                 if 'keypoints' in res:
                     kpts = np.array(res['keypoints'])
                     if kpts.ndim != 2:
@@ -371,6 +387,7 @@ class PoseLifter(BasePose):
                 imshow_bboxes(
                     img,
                     bboxes,
+                    label_result,
                     colors='green',
                     thickness=thickness,
                     show=False)
