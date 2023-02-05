@@ -1,4 +1,5 @@
 import warnings
+warnings.filterwarnings("ignore")
 import copy
 import os
 import os.path as osp
@@ -20,10 +21,13 @@ from mmpose.core import Smoother
 
 try:
     from mmdet.apis import inference_detector, init_detector
-
     has_mmdet = True
 except (ImportError, ModuleNotFoundError):
     has_mmdet = False
+ 
+
+from mmpose.apis import vis_pose_result
+from mmpose.datasets.pipelines.custom_hand_postprocessing import *
     
     
 def coco_to_body(keypoints):
@@ -282,7 +286,7 @@ def get_parser():
         default=0.5,
         help='Nms threshold')
 
-    parser.add_argument('--kpt-thr', type=float, default=0.3)
+    parser.add_argument('--kpt-thr', type=float, default=0)
     parser.add_argument(
         '--use-oks-tracking', action='store_true', help='Using OKS tracking')
     parser.add_argument(
@@ -343,9 +347,14 @@ def get_wholebody2d(args, video):
     hand_det_model = None
     hand2d_pose_model = None
     
+    op_assignhandbbox = AssignHandBBoxForEachPerson(kpt_thr=args.kpt_thr)
+    op_assignhandkeypoints2d = AssignHandKeypoints2dForEachPerson()
+    op_filterlargehand = FilterLargeHandForEachPerson()
+    
     next_id = 0
     person_keypoints2d_results = []
     for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)): 
+ 
         person_keypoints2d_results_last = person_keypoints2d_results
         mmdet_results = inference_detector(person_det_model, cur_frame)
         person_results = process_mmdet_results(mmdet_results, args.det_cat_id)
@@ -405,77 +414,8 @@ def get_wholebody2d(args, video):
             hand_bboxes = torch.cat(
                 [hand_bboxes_coords, hand_bboxes_scores.unsqueeze(-1)],  dim=-1)
         hand_bboxes = hand_bboxes.cpu().numpy()
-    
-        num_hand_bboxes = len(hand_bboxes)
-        if num_hand_bboxes == 0:
-            for idx, person in enumerate(person_keypoints2d_results):
-                person_keypoints2d_results[idx]['left_hand_bbox'] = np.empty((0, 5))
-                person_keypoints2d_results[idx]['left_hand_valid'] = False
-                person_keypoints2d_results[idx]['right_hand_bbox'] = np.empty((0, 5))
-                person_keypoints2d_results[idx]['right_hand_valid'] = False
-        else:
-            for idx, person in enumerate(person_keypoints2d_results):  
-                
-                dist_left_arm = np.ones((num_hand_bboxes, )) * float('inf')
-                dist_right_arm = np.ones((num_hand_bboxes, )) * float('inf')
-                person_keypoints2d = person['keypoints']
-                
-                # left arm
-                if person_keypoints2d[9][-1] > args.kpt_thr and person_keypoints2d[7][-1] > args.kpt_thr:
-                    dist_wrist_elbow = np.linalg.norm(person_keypoints2d[9][:2] - person_keypoints2d[7][:2])
-                    c_x = (hand_bboxes[:, 0] + hand_bboxes[:, 2]) / 2
-                    c_y = (hand_bboxes[:, 1] + hand_bboxes[:, 3]) / 2
-                    center = np.stack((c_x, c_y), axis=-1)
-                    dist_bbox_ankle = np.linalg.norm(center - person_keypoints2d[9][:2], axis=-1)
-                    mask = dist_bbox_ankle < dist_wrist_elbow * 1.5
-                    dist_left_arm[mask] = dist_bbox_ankle[mask]
-
-                # right arm
-                if person_keypoints2d[10][-1] > args.kpt_thr and person_keypoints2d[8][-1] > args.kpt_thr:
-                    dist_wrist_elbow = np.linalg.norm(person_keypoints2d[10][:2] - person_keypoints2d[8][:2])
-                    c_x = (hand_bboxes[:, 0] + hand_bboxes[:, 2]) / 2
-                    c_y = (hand_bboxes[:, 1] + hand_bboxes[:, 3]) / 2
-                    center = np.stack((c_x, c_y), axis=-1)
-                    dist_bbox_ankle = np.linalg.norm(center - person_keypoints2d[10][:2], axis=-1)
-                    mask = dist_bbox_ankle < dist_wrist_elbow * 1.5
-                    dist_right_arm[mask] = dist_bbox_ankle[mask]
-                    
-                left_id = np.argmin(dist_left_arm)
-                right_id = np.argmin(dist_right_arm)
-                
-                if left_id != right_id:
-                    if dist_left_arm[left_id] < float('inf'):
-                        person_keypoints2d_results[idx]['left_hand_bbox'] = hand_bboxes[left_id]
-                        person_keypoints2d_results[idx]['left_hand_valid'] = True
-                    else:
-                        person_keypoints2d_results[idx]['left_hand_bbox'] = np.empty((0, 5))
-                        person_keypoints2d_results[idx]['left_hand_valid'] = False
-                        
-                    if dist_right_arm[right_id] < float('inf'):
-                        person_keypoints2d_results[idx]['right_hand_bbox'] = hand_bboxes[right_id]
-                        person_keypoints2d_results[idx]['right_hand_valid'] = True
-                    else:
-                        person_keypoints2d_results[idx]['right_hand_bbox'] = np.empty((0, 5))
-                        person_keypoints2d_results[idx]['right_hand_valid'] = False 
-                else:
-                    assign_hand = None
-                    assign_id = None
-                    person_keypoints2d_results[idx]['left_hand_bbox'] = np.empty((0, 5))
-                    person_keypoints2d_results[idx]['left_hand_valid'] = False
-                    person_keypoints2d_results[idx]['right_hand_bbox'] = np.empty((0, 5))
-                    person_keypoints2d_results[idx]['right_hand_valid'] = False  
-                    
-                    if dist_left_arm[left_id] < dist_right_arm[right_id]:
-                        assign_hand = 'left_hand'
-                        assign_id = left_id
-                        
-                    elif dist_left_arm[left_id] > dist_right_arm[right_id]:
-                        assign_hand = 'right_hand'
-                        assign_id = right_id
-                
-                    if assign_hand is not None:
-                        person_keypoints2d_results[idx][assign_hand+"_bbox"] = hand_bboxes[assign_id]
-                        person_keypoints2d_results[idx][assign_hand+"_valid"] = True
+        
+        person_keypoints2d_results = op_assignhandbbox(person_keypoints2d_results, hand_bboxes)
     
         hand_results = []
         for person in person_keypoints2d_results:
@@ -494,53 +434,23 @@ def get_wholebody2d(args, video):
             dataset_info=DatasetInfo(hand2d_pose_model.cfg.data['test'].get('dataset_info', None)),
             return_heatmap=False,
             outputs=None)
-        
-        tmp_idx = 0
-        for person in person_keypoints2d_results:
-            # person: dict(bbox, keypoints, area, track_id, left_hand_bbox, left_hand_valid, right_hand_bbox, right_hand_valid)
-            # 下面的代码是在每个person中加入`left_hand_keypoints`和`right_hand_keypoints`
-            # left_hand_valid为True时表示当前帧检测到人手
-            if person['left_hand_valid']:
-                person['left_hand_keypoints'] = hand_keypoints2d_results[tmp_idx]['keypoints']
-                tmp_idx += 1
-            else:
-                tmp_person = None
-                for person_last in person_keypoints2d_results_last:
-                    if person_last['track_id'] == person['track_id']:
-                        tmp_person = person_last
-                        break
-                if tmp_person is None or not tmp_person['left_hand_valid']:
-                    # 没检测到hand, 同时上一帧也没有对应的信息或者上一帧没检测到手, 用tcformer结果代替
-                    person['left_hand_keypoints'] = person['keypoints'][91: 112]
-                    # raise NotImplementedError     
-                else:
-                    # 利用前一帧修正
-                    person['left_hand_keypoints'] = tmp_person['left_hand_keypoints']
-                    person['left_hand_bbox'] = tmp_person['left_hand_bbox']
-                    # person['left_hand_valid'] = False
-                  
-            if person['right_hand_valid']:
-                person['right_hand_keypoints'] = hand_keypoints2d_results[tmp_idx]['keypoints']
-                tmp_idx += 1
-            else:
-                tmp_person = None
-                for person_last in person_keypoints2d_results_last:
-                    if person_last['track_id'] == person['track_id']:
-                        tmp_person = person_last
-                        break
-                if tmp_person is None or not tmp_person['right_hand_valid']:
-                    person['right_hand_keypoints'] = person['keypoints'][112: 133]
-                    # raise NotImplementedError
-                else:
-                    # 利用前一帧修正
-                    person['right_hand_keypoints'] = tmp_person['right_hand_keypoints']
-                    person['right_hand_bbox'] = tmp_person['right_hand_bbox']
-                    # person['right_hand_valid'] = False
-            
-            person['keypoints'][91: 112] = person['left_hand_keypoints'] 
-            person['keypoints'][112: 133] = person['right_hand_keypoints']
-            
+
+        person_keypoints2d_results  = op_assignhandkeypoints2d(person_keypoints2d_results, person_keypoints2d_results_last, hand_keypoints2d_results)
+        person_keypoints2d_results = op_filterlargehand(person_keypoints2d_results)       
         pose_det_results_list.append(person_keypoints2d_results)
+        
+        vis_frame = vis_pose_result(
+            wholebody2d_pose_model,
+            cur_frame,
+            person_keypoints2d_results,
+            dataset=wholebody2d_pose_model.cfg.data['test']['type'],
+            dataset_info=DatasetInfo(wholebody2d_pose_model.cfg.data['test'].get('dataset_info', None)),
+            kpt_score_thr=0,
+            radius=1,
+            thickness=args.thickness,
+            show=False)
+
+        cv2.imwrite(f'workspace/images/{frame_id}.jpg', vis_frame)
 
     return pose_det_results_list
     
@@ -563,6 +473,11 @@ def main():
             pose_det_results_list = pickle.load(fin)
     else:
         pose_det_results_list = get_wholebody2d(args, video)
+
+
+        # import pickle
+        # with open('res.pkl', 'wb') as fin:
+        #     pickle.dump(pose_det_results_list, fin)
 
 
     print('Stage 2: 2D-to-3D pose lifting.')
@@ -728,6 +643,7 @@ def main():
     h3wb_wo_face_dataset_info = 'configs/_base_/datasets/h36m_wo_face.py'
     cfg = Config.fromfile(h3wb_wo_face_dataset_info)
     h3wb_wo_face_dataset_info = DatasetInfo(cfg.dataset_info)
+    
     for i, pose_det_results in enumerate(mmcv.track_iter_progress(pose_det_results_list)):
     
         body_results_2d = extract_pose_sequence(
@@ -786,6 +702,8 @@ def main():
             image_size=video.resolution,
             norm_pose_2d=args.norm_pose_2d)
         
+        # body_lift_results: [{track_id, keypoints, keypoints_3d}, ]
+        
         # left hand 2D -> 3D
         left_hand_lift_results = inference_pose_lifter_model(
             lhand_lift_model,
@@ -827,9 +745,9 @@ def main():
             norm_pose_2d=args.norm_pose_2d)
         
         body_hands_and_foots_lift_results = copy.deepcopy(body_lift_results)
-        for j in range(len(body_hands_and_foots_lift_results)):
-            tmp_bh, lhand, rhand = body_hands_and_foots_lift_results[j], left_hand_lift_results[j], right_hand_lift_results[j]
-            lfoot, rfoot = left_foot_lift_results[j], right_foot_lift_results[j]
+        for idx in range(len(body_hands_and_foots_lift_results)):
+            tmp_bh, lhand, rhand = body_hands_and_foots_lift_results[idx], left_hand_lift_results[idx], right_hand_lift_results[idx]
+            lfoot, rfoot = left_foot_lift_results[idx], right_foot_lift_results[idx]
             
             tmp_bh['keypoints'] = np.concatenate([
                 tmp_bh['keypoints'], lhand['keypoints'][:, 1:, ...], rhand['keypoints'][:, 1:, ...],
@@ -844,6 +762,7 @@ def main():
             tmp_bh['keypoints_3d'] = np.concatenate([
                 tmp_bh['keypoints_3d'], lhand['keypoints_3d'][1:, ...], rhand['keypoints_3d'][1:, ...],
                 lfoot['keypoints_3d'][1:, ...], rfoot['keypoints_3d'][1:, ...]])
+            
              
         # Pose processing
         body_and_hands_lift_results_vis = []
@@ -858,13 +777,17 @@ def main():
             # res['keypoints'] = pose_det_results[idx]['keypoints']
             res['keypoints'] = res['keypoints'][-1]
             res['bbox'] = pose_det_results[idx]['bbox']
-            res['track_id'] = 0     # lazy way
+            res['track_id'] = pose_det_results[idx]['track_id'] 
+            res['left_hand_bbox'] = pose_det_results[idx]['left_hand_bbox'] 
+            res['left_hand_valid'] = pose_det_results[idx]['left_hand_valid']
+            res['right_hand_bbox'] = pose_det_results[idx]['right_hand_bbox'] 
+            res['right_hand_valid'] = pose_det_results[idx]['right_hand_valid']
             body_and_hands_lift_results_vis.append(res)
         
         # body_and_hands_lift_results_vis: list[dict()]
         if num_instances < 0:
             num_instances = len(body_and_hands_lift_results_vis)
-            
+
         img_vis = vis_3d_pose_result(
             body_lift_model,
             result=body_and_hands_lift_results_vis,
