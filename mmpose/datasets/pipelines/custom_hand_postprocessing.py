@@ -221,9 +221,12 @@ class FilterLargeHandForEachPerson:
                     
                     # lazy way 
                     data['left_hand_bbox'] = np.empty((0, 5))
+                    data['left_hand_valid'] = False
                     
                 else:
                     print("Couldn't correct hand kps, will fix in future")
+                    data['left_hand_bbox'] = np.empty((0, 5))
+                    data['left_hand_valid'] = False
                     # raise NotImplementedError
 
             if right_hand_area / person_area > self.area_thr:
@@ -268,8 +271,11 @@ class FilterLargeHandForEachPerson:
                         
                     # lazy way
                     data['right_hand_bbox'] = np.empty((0, 5)) 
+                    data['right_hand_valid'] = False
                 else:
                     print("Couldn't correct hand kps, will fix in future")
+                    data['right_hand_bbox'] = np.empty((0, 5))
+                    data['right_hand_valid'] = False
                     # raise NotImplementedError
             
             data['keypoints'][91: 112] = data['left_hand_keypoints'] 
