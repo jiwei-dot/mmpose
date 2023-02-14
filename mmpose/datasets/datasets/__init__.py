@@ -29,6 +29,7 @@ from .top_down import (TopDownAicDataset, TopDownCocoDataset,
                        TopDownPoseTrack18VideoDataset)
 from .wholebody_wo_face import WholeBodyWoFace3DH3WBDataset
 from .foot import Foot3DH3WBDataset
+from .body2d3d import Body2D3DH36MDataset
 
 __all__ = [
     'TopDownCocoDataset', 'BottomUpCocoDataset', 'BottomUpMhpDataset',
@@ -51,5 +52,6 @@ __all__ = [
     'Body3DMviewDirectCampusDataset', 'NVGestureDataset',
     'WholeBodyWoFace3DH3WBDataset',
     'Foot3DH3WBDataset',
-    'Hand3DH3WBDataset'
+    'Hand3DH3WBDataset',
+    'Body2D3DH36MDataset'
 ]
