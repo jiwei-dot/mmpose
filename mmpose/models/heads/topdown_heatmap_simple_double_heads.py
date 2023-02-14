@@ -161,7 +161,7 @@ class TopdownHeatmapSimpleDoubleHeads(TopdownHeatmapBaseHead):
     def get_loss(self, output, target, target_weight, xyz_camera_space, xyz_weight):
         assert len(output) == 2
         losses = dict()
-        losses['heatmap_loss'] = self.loss1(output[0], target, target_weight)
+        losses['heatmap_loss'] = self.loss1(output[0], target, target_weight) * 100
         losses['xyz_loss'] = self.loss2(output[1], xyz_camera_space, xyz_weight)
         return losses
     
