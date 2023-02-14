@@ -362,10 +362,11 @@ class TopDownAffine:
                 [0, f[1, 0], c[1, 0]],
                 [0, 0, 1]], dtype=f.dtype)
             new_intrisic = trans @ intrisic
-            new_f = np.array([[new_intrisic[0, 0]], [new_intrisic[1, 1]]])
-            new_c = np.array([[new_intrisic[0, 2]], [new_intrisic[1, 2]]])
-            camera_param['f'] = new_f
-            camera_param['c'] = new_c
+            camera_param['K'] = new_intrisic
+            del camera_param['k']
+            del camera_param['p']
+            del camera_param['f']
+            del camera_param['c']
             results['camera_param'] = camera_param
 
         results['img'] = img
