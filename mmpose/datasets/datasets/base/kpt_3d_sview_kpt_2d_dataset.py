@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import copy
+import os
 from abc import ABCMeta, abstractmethod
 
 import numpy as np
@@ -73,6 +74,7 @@ class Kpt3dSviewKpt2dDataset(Dataset, metaclass=ABCMeta):
         self.ann_info['lower_body_ids'] = dataset_info.lower_body_ids
         self.ann_info['joint_weights'] = dataset_info.joint_weights
         self.ann_info['skeleton'] = dataset_info.skeleton
+        self.ann_info.update(data_cfg)
         self.sigmas = dataset_info.sigmas
         self.dataset_name = dataset_info.dataset_name
 
@@ -106,6 +108,7 @@ class Kpt3dSviewKpt2dDataset(Dataset, metaclass=ABCMeta):
 
         # get image info
         _imgnames = data['imgname']
+        _imgnames = np.array([os.path.join(self.img_prefix, p.replace('\\', '/')) for p in _imgnames])
         num_imgs = len(_imgnames)
         num_joints = self.ann_info['num_joints']
 
@@ -196,10 +199,14 @@ class Kpt3dSviewKpt2dDataset(Dataset, metaclass=ABCMeta):
             'target_image_path': _imgnames[target_idx],
             'scales': _scales,
             'centers': _centers,
+            # Add by Jiwei, 02/12/2023
+            'scale': _scales[target_idx],
+            'center': _centers[target_idx],
         }
 
         if self.need_2d_label:
             results['target_2d'] = _joints_2d[target_idx, :, :2]
+            results['target_2d_visible'] = _joints_2d[target_idx, :, -1:]
 
         if self.need_camera_param:
             _cam_param = self.get_camera_param(_imgnames[0])
