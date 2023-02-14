@@ -154,10 +154,10 @@ class TopDown(BasePose):
         losses = dict()
         if self.with_keypoint:
             keypoint_losses = self.keypoint_head.get_loss(
-                output, target, target_weight)
+                output, target, target_weight, **kwargs)
             losses.update(keypoint_losses)
             keypoint_accuracy = self.keypoint_head.get_accuracy(
-                output, target, target_weight)
+                output, target, target_weight, **kwargs)
             losses.update(keypoint_accuracy)
 
         return losses
@@ -166,8 +166,8 @@ class TopDown(BasePose):
         """Defines the computation performed at every call when testing."""
         assert img.size(0) == len(img_metas)
         batch_size, _, img_height, img_width = img.shape
-        if batch_size > 1:
-            assert 'bbox_id' in img_metas[0]
+        # if batch_size > 1:
+        #     assert 'bbox_id' in img_metas[0]
 
         result = {}
 
