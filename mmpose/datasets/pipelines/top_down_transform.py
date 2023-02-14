@@ -113,6 +113,9 @@ class TopDownRandomFlip:
         joints_3d = results['joints_3d']
         joints_3d_visible = results['joints_3d_visible']
         center = results['center']
+        
+        joints_4d = results.get('joints_4d', None)
+        joints_4d_visible = results.get('joints_4d_visible', None)
 
         # A flag indicating whether the image is flipped,
         # which can be used by child class.
@@ -133,12 +136,35 @@ class TopDownRandomFlip:
                     joints_3d, joints_3d_visible, img[0].shape[1],
                     results['ann_info']['flip_pairs'])
                 center[0] = img[0].shape[1] - center[0] - 1
-
+              
+            # 对相机空间中的3D点进行水平翻转
+            # 先使用翻转后的图像空间2D点,从图像空间还原到相机空间,然后再乘上翻转后的深度
+            if joints_4d is not None and joints_4d_visible is not None:
+                assert 'camera_param' in results
+                joints_4d_flipped = joints_4d.copy()
+                joints_4d_visible_flipped = joints_4d_visible.copy()
+                for left, right in results['ann_info']['flip_pairs']:
+                    joints_4d_flipped[left, :] = joints_4d[right, :]
+                    joints_4d_flipped[right, :] = joints_4d[left, :]
+                    joints_4d_visible_flipped[left, :] = joints_4d_visible[right, :]
+                    joints_4d_visible_flipped[right, :] = joints_4d_visible[left, :]
+                joints_4d_flipped_depth = joints_4d_flipped[:, 2:3]
+                from mmpose.core.camera import SimpleCamera
+                camera = SimpleCamera(results['camera_param'])
+                joints_3d_homo = np.column_stack([joints_3d[:, :2], np.ones((len(joints_3d), 1), dtype=joints_3d.dtype)])
+                joints_4d_flipped[:, :3] = camera.pixel_to_camera(joints_3d_homo) * joints_4d_flipped_depth
+                joints_4d = joints_4d_flipped
+                joints_4d_visible = joints_4d_visible_flipped
+        
         results['img'] = img
         results['joints_3d'] = joints_3d
         results['joints_3d_visible'] = joints_3d_visible
         results['center'] = center
         results['flipped'] = flipped
+        
+        if joints_4d is not None and joints_4d_visible is not None:
+            results['joints_4d'] = joints_4d
+            results['joints_4d_visible'] = joints_4d_visible
 
         return results
 
@@ -326,6 +352,21 @@ class TopDownAffine:
                 if joints_3d_visible[i, 0] > 0.0:
                     joints_3d[i,
                               0:2] = affine_transform(joints_3d[i, 0:2], trans)
+        
+        camera_param = results.get('camera_param', None)
+        if camera_param is not None:
+            f = camera_param['f']       # 2 x 1
+            c = camera_param['c']       # 2 x 1
+            intrisic = np.array([
+                [f[0, 0], 0, c[0, 0]],
+                [0, f[1, 0], c[1, 0]],
+                [0, 0, 1]], dtype=f.dtype)
+            new_intrisic = trans @ intrisic
+            new_f = np.array([[new_intrisic[0, 0]], [new_intrisic[1, 1]]])
+            new_c = np.array([[new_intrisic[0, 2]], [new_intrisic[1, 2]]])
+            camera_param['f'] = new_f
+            camera_param['c'] = new_c
+            results['camera_param'] = camera_param
 
         results['img'] = img
         results['joints_3d'] = joints_3d
@@ -393,6 +434,7 @@ class TopDownGenerateTarget:
         """
         num_joints = cfg['num_joints']
         image_size = cfg['image_size']
+        image_size = np.array(image_size)
         W, H = cfg['heatmap_size']
         joint_weights = cfg['joint_weights']
         use_different_joint_weights = cfg['use_different_joint_weights']
