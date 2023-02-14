@@ -139,10 +139,8 @@ class CustomGenerateXYZInCameraSpace:
     
     def __call__(self, results):
         joints_4d = results['joints_4d']
-        joints_4d_visible = results['joints_4d_visible']
         xyz_camera_space = joints_4d[:, :3]
-        xyz_weight = joints_4d_visible[:, 0:1]
         results['xyz_camera_space'] = xyz_camera_space
-        results['xyz_weight'] = xyz_weight
+        results['xyz_weight'] = results['target_weight']
         return results
     
