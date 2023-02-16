@@ -4,6 +4,7 @@
 
 
 import cv2
+import copy
 import numpy as np
 
 
@@ -16,10 +17,11 @@ class AssignHandBBoxForEachPerson:
     def __init__(self, kpt_thr = 0.3):
         self.kpt_thr = kpt_thr
     
-    def __call__(self, data_list, hand_bboxes):
+    def __call__(self, old_data_list, hand_bboxes):
         # data_list: [dict(bbox, keypoints, area, track_id), ...], data为单张图片的wholebody2d检测结果,
         #       长度对应单张图片检测到的人数
         # hand_bboxes: ndarray [Nx5]
+        data_list = copy.deepcopy(old_data_list)
         num_hand_bboxes = len(hand_bboxes)
         if num_hand_bboxes == 0:
             for idx in range(len(data_list)):
