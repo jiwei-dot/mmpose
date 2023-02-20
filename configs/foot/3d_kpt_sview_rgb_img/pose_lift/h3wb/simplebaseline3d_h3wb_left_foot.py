@@ -46,7 +46,7 @@ model = dict(
     test_cfg=dict(restore_global_position=True))
 
 # data settings
-data_root = 'data/h3wb'
+data_root = 'data/h36m'
 data_cfg = dict(
     num_joints=4,
     seq_len=1,
@@ -59,25 +59,46 @@ data_cfg = dict(
 
 # 3D joint normalization parameters
 # From file: '{data_root}/annotations/joint3d_rel_stats.pkl'
+# joint_3d_normalize_param = dict(
+#     mean=[[-0.00100205,  0.05328414,  0.01158549],
+#        [-0.00083378,  0.0559862 ,  0.01225291],
+#        [-0.00045601,  0.04030471,  0.00915677]],
+#     std=[[0.09650524, 0.04471978, 0.14004999],
+#        [0.08712755, 0.03457024, 0.10180451],
+#        [0.02762162, 0.01381713, 0.03833972]])
+
+
 joint_3d_normalize_param = dict(
-    mean=[[-0.00100205,  0.05328414,  0.01158549],
-       [-0.00083378,  0.0559862 ,  0.01225291],
-       [-0.00045601,  0.04030471,  0.00915677]],
-    std=[[0.09650524, 0.04471978, 0.14004999],
-       [0.08712755, 0.03457024, 0.10180451],
-       [0.02762162, 0.01381713, 0.03833972]])
+    mean=[[-0.00155424,  0.05441653,  0.01177335],
+       [-0.00123832,  0.05684389,  0.01223127],
+       [-0.00034638,  0.04047852,  0.00922054]],
+    std=[[0.09563543, 0.04459708, 0.13592532],
+       [0.08529631, 0.03516115, 0.10087227],
+       [0.02717939, 0.01347848, 0.03808727]],
+)
 
 # 2D joint normalization parameters
 # From file: '{data_root}/annotations/joint2d_stats.pkl'
+# joint_2d_normalize_param = dict(
+#     mean=[[532.90338803, 576.78355853],
+#        [533.56692915, 588.95513987],
+#        [533.65039025, 589.21284974],
+#        [532.47219793, 585.468885  ]],
+#     std=[[102.99067186,  50.39087227],
+#        [103.53227537,  51.7706836 ],
+#        [102.80298566,  51.19201958],
+#        [103.84026609,  51.53965411]])
+
 joint_2d_normalize_param = dict(
-    mean=[[532.90338803, 576.78355853],
-       [533.56692915, 588.95513987],
-       [533.65039025, 589.21284974],
-       [532.47219793, 585.468885  ]],
-    std=[[102.99067186,  50.39087227],
-       [103.53227537,  51.7706836 ],
-       [102.80298566,  51.19201958],
-       [103.84026609,  51.53965411]])
+    mean=[[531.26867163, 576.81776902],
+       [531.77760253, 589.47425858],
+       [532.03506855, 589.60357836],
+       [530.84219158, 585.47623854]],
+    std=[[108.34712673,  49.90888571],
+       [108.87208683,  52.67370195],
+       [107.81882037,  51.67378874],
+       [109.22259929,  50.77132965]],
+)
 
 train_pipeline = [
     dict(
@@ -118,21 +139,21 @@ data = dict(
     test_dataloader=dict(samples_per_gpu=512),
     train=dict(
         type='Foot3DH3WBDataset',
-        ann_file=f'{data_root}/annotations/train_left_foot.npz',
+        ann_file=f'{data_root}/annotation_wholebody3d/lfoot_h3wb_train.npz',
         img_prefix=f'{data_root}/images/',
         data_cfg=data_cfg,
         pipeline=train_pipeline,
         dataset_info={{_base_.dataset_info}}),
     val=dict(
         type='Foot3DH3WBDataset',
-        ann_file=f'{data_root}/annotations/val_left_foot.npz',
+        ann_file=f'{data_root}/annotation_wholebody3d/lfoot_h3wb_test.npz',
         img_prefix=f'{data_root}/images/',
         data_cfg=data_cfg,
         pipeline=val_pipeline,
         dataset_info={{_base_.dataset_info}}),
     test=dict(
         type='Foot3DH3WBDataset',
-        ann_file=f'{data_root}/annotations/val_left_root.npz',
+        ann_file=f'{data_root}/annotation_wholebody3d/lfoot_h3wb_test.npz',
         img_prefix=f'{data_root}/images/',
         data_cfg=data_cfg,
         pipeline=test_pipeline,
