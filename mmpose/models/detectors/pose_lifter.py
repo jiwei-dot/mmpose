@@ -396,7 +396,7 @@ class PoseLifter(BasePose):
                     img,
                     pose_input_2d,
                     skeleton,
-                    kpt_score_thr=0.3,
+                    kpt_score_thr=0.0,
                     pose_kpt_color=pose_kpt_color,
                     pose_link_color=pose_link_color,
                     radius=radius,
