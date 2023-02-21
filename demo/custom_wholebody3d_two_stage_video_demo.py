@@ -161,7 +161,7 @@ def get_parser():
     parser.add_argument(
         '--lefthand3d_lifter_checkpoint',
         type=str,
-        default='work_dirs/simplebaseline3d_h3wb_left_hand/best_MPJPE_epoch_170.pth',
+        default='work_dirs/simplebaseline3d_h3wb_left_hand/best_MPJPE_epoch_200.pth',
         help='Checkpoint file for the 2nd stage left_hand lifter model')
     
     
@@ -176,7 +176,7 @@ def get_parser():
     parser.add_argument(
         '--righthand3d_lifter_checkpoint',
         type=str,
-        default='work_dirs/simplebaseline3d_h3wb_right_hand/best_MPJPE_epoch_110.pth',
+        default='work_dirs/simplebaseline3d_h3wb_right_hand/best_MPJPE_epoch_200.pth',
         help='Checkpoint file for the 2nd stage right_hand lifter model')
     
     
@@ -191,7 +191,7 @@ def get_parser():
     parser.add_argument(
         '--leftfoot3d_lifter_checkpoint',
         type=str,
-        default='work_dirs/simplebaseline3d_h3wb_left_foot/best_MPJPE_epoch_140.pth',
+        default='work_dirs/simplebaseline3d_h3wb_left_foot/best_MPJPE_epoch_160.pth',
         help='Checkpoint file for the 2nd stage left_foot lifter model')
     
     
@@ -785,6 +785,10 @@ def main():
             body_and_hands_lift_results_vis.append(res)
         
         # body_and_hands_lift_results_vis: list[dict()]
+        
+        if len(body_and_hands_lift_results_vis) == 0:
+            continue
+        
         if num_instances < 0:
             num_instances = len(body_and_hands_lift_results_vis)
 
