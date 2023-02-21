@@ -10,7 +10,7 @@ from detectron2.engine import DefaultPredictor
 
 import mmcv
 from mmdet.apis import init_detector, inference_detector
-from mmpose.apis import init_pose_model, process_mmdet_results, inference_top_down_pose_model
+from mmpose.apis import init_pose_model, process_mmdet_results, inference_top_down_pose_model, get_track_id
 from mmpose.datasets import DatasetInfo
 from mmpose.datasets.pipelines.custom_hand_postprocessing import *
 
@@ -43,6 +43,15 @@ def get_parser():
     parser.add_argument('--video-path', required=True)
     parser.add_argument('--out-root', required=True)
     parser.add_argument('--device', default='cuda:0')
+    
+    # Track
+    parser.add_argument('--use-oks-tracking', action='store_true')
+    parser.add_argument('--tracking-thr', default=0.3, type=float)
+    
+    # Filter hand
+    parser.add_argument('--filter-large-hand', action='store_true')
+    parser.add_argument('--hand-area-thr', default=0.02)
+    
     
     return parser
 
@@ -77,6 +86,17 @@ def inference_hand_model(hand_det_model, frame, wholebody_kps2d_results, args):
     return hand_bbox_wholebody_kps2d_results
     
 
+def get_area(bbox, kpts):
+    if len(bbox) != 0:
+        x1, y1, x2, y2, _ = bbox
+    else:
+        x1 = np.min(kpts[:, 0])
+        y1 = np.min(kpts[:, 1])
+        x2 = np.max(kpts[:, 0])
+        y2 = np.max(kpts[:, 1])
+    return (x2 - x1) * (y2 - y1)
+
+
 def main(args):
        
     person_det_model = init_detector(args.person_det_config, args.person_det_checkpoint, device=args.device.lower())
@@ -87,7 +107,12 @@ def main(args):
     video = mmcv.VideoReader(args.video_path)
     video_output_list = []
     
+    next_id = 0
+    frame_hand_bbox_wholebody_kps2d_results = []
+    
     for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
+        
+        lastframe_hand_bbox_wholebody_kps2d_results = frame_hand_bbox_wholebody_kps2d_results
         
         # detect people
         mmdet_results = inference_detector(person_det_model, cur_frame)
@@ -116,6 +141,13 @@ def main(args):
             args,)
         
         # hand_bbox_wholebody_kps2d_results: [dict(bbox, keypoints, left_hand_bbox, left_hand_valid, right_hand_bbox, right_hand_valid), ...]
+        
+        hand_bbox_wholebody_kps2d_results, next_id = get_track_id(
+            hand_bbox_wholebody_kps2d_results,
+            lastframe_hand_bbox_wholebody_kps2d_results,
+            next_id,
+            use_oks=args.use_oks_tracking,
+            tracking_thr=args.tracking_thr)
         
         
         hand_results_single_frame = []
@@ -159,8 +191,31 @@ def main(args):
                 hand_idx += 1
             else:
                 person['right_hand_keypoints'] = np.empty((0, 3))
+        
+             
+        single_frame_dict = dict()
+        for person in hand_kps2d_hand_bbox_wholebody_2d_results:
+            # todo filter large hand bbox
+            if args.filter_large_hand:
                 
-        video_output_list.append(hand_kps2d_hand_bbox_wholebody_2d_results)
+                person_area = get_area(person['person_bbox'], person['wholebody_keypoints'])
+                left_hand_area = get_area(person['left_hand_bbox'], person['wholebody_keypoints'][-42:-21, :])
+                right_hand_area = get_area(person['right_hand_bbox'], person['wholebody_keypoints'][-21:, :])
+                
+                if left_hand_area > person_area * args.hand_area_thr:
+                    person['left_hand_valid'] = False
+                    person['left_hand_bbox'] = np.empty((0, 5))
+                    person['left_hand_keypoints'] = np.empty((0, 3))
+                    
+                if right_hand_area > person_area * args.hand_area_thr:
+                    person['right_hand_valid'] = False
+                    person['right_hand_bbox'] = np.empty((0, 5))
+                    person['right_hand_keypoints'] = np.empty((0, 3))
+            
+            single_frame_dict[person['track_id']] = person
+                
+        # video_output_list.append(hand_kps2d_hand_bbox_wholebody_2d_results)
+        video_output_list.append(single_frame_dict)
 
     name = (os.path.basename(args.video_path)).split('.')[0]
     out_file_name = f'kps2d_{name}.pkl'
