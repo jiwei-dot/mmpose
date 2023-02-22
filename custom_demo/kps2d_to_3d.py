@@ -78,7 +78,7 @@ def get_parser():
     parser.add_argument('--leftfoot3d-lifter-checkpoint', default='work_dirs/simplebaseline3d_h3wb_left_foot/best_MPJPE_epoch_160.pth')
     
     parser.add_argument('--rightfoot3d-lifter-config', default='configs/foot/3d_kpt_sview_rgb_img/pose_lift/h3wb/simplebaseline3d_h3wb_right_foot.py')
-    parser.add_argument('--rightfoot3d-lifter-checkpoint', default='work_dirs/simplebaseline3d_h3wb_right_foot/best_MPJPE_epoch_120.pth')
+    parser.add_argument('--rightfoot3d-lifter-checkpoint', default='work_dirs/simplebaseline3d_h3wb_right_foot/best_MPJPE_epoch_200.pth')
     
     # smooth
     parser.add_argument('--smooth', action='store_true')
