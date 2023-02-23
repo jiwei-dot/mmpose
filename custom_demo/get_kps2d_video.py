@@ -149,6 +149,8 @@ def main(args):
             use_oks=args.use_oks_tracking,
             tracking_thr=args.tracking_thr)
         
+        # fix bug here
+        frame_hand_bbox_wholebody_kps2d_results = hand_bbox_wholebody_kps2d_results
         
         hand_results_single_frame = []
         for person in hand_bbox_wholebody_kps2d_results:
