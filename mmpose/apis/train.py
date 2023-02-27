@@ -77,6 +77,25 @@ def train_model(model,
         meta (dict | None): Meta dict to record some important information.
             Default: None
     """
+    
+    print("Frozen backbone")
+    for _, param in model.backbone.named_parameters():
+        param.requires_grad_(False)
+        
+    if model.with_neck:
+        print("Frozen neck")
+        for _, param in model.neck.named_parameters():
+            param.requires_grad_(False)
+            
+    if model.with_keypoint:
+        print("Frozen head")
+        for _, param in model.keypoint_head.head1_deconv_layers.named_parameters():
+            param.requires_grad_(False)
+        for _, param in model.keypoint_head.final_layer1.named_parameters():
+            param.requires_grad_(False)
+        
+    print("Frozen some weights")
+    
     logger = get_root_logger(cfg.log_level)
 
     # prepare data loaders

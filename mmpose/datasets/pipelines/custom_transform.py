@@ -70,27 +70,35 @@ class CustomIntegralGenerateTarget:
 @PIPELINES.register_module()
 class CustomGenerateDepth:
     
-    def __init__(self):
-        pass     
+    def __init__(self, root_index=0):
+        self.root_index = root_index    
     
     def __call__(self, results):
         
         joints_4d = results['joints_4d']                    # N x 4
         joints_4d_visible = results['joints_4d_visible']    # N x 4
         
-        joints_4d_depth = joints_4d[:, 2:3]
-        joints_4d_depth_visible = joints_4d_visible[:, 2:3]
-        results['depth'] = joints_4d_depth
+        joints_4d_depth = joints_4d[:, 2]                 # N
+        abs_depth = joints_4d_depth[self.root_index]
+        joints_4d_rel_depth = joints_4d_depth - abs_depth
         
+        joints_4d_depth_visible = joints_4d_visible[:, 2]   # N
         cfg = results['ann_info']
         joint_weights = cfg['joint_weights']
         use_different_joint_weights = cfg['use_different_joint_weights']
         
-        depth_weight = joints_4d_depth_visible[:, 0:1]
+        depth_weight = joints_4d_depth_visible
         if use_different_joint_weights:
             depth_weight = np.multiply(depth_weight, joint_weights)   
-            
-        results['depth_weight'] = depth_weight     
+
+        results['abs_depth'] = abs_depth
+        results['target_z'] = joints_4d_rel_depth[1:]
+        results['target_z_weight'] = depth_weight[1:]   
+        
+        # print('abs_depth', abs_depth)  
+        # print('joints_4d_rel_depth', joints_4d_rel_depth)
+        # print('depth_weight', depth_weight)
+        # exit()
         
         return results
     
