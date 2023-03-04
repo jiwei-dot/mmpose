@@ -317,3 +317,255 @@ class TemporalRegressionHead(nn.Module):
                 kaiming_init(m, mode='fan_in', nonlinearity='relu')
             elif isinstance(m, _BatchNorm):
                 constant_init(m, 1)
+
+
+@HEADS.register_module()
+class HandsTemporalRegressionHead(TemporalRegressionHead):
+    
+    def __init__(self, 
+                 in_channels, 
+                 num_joints, 
+                 num_root_joints,
+                 max_norm=None, 
+                 loss_keypoint=None, 
+                 is_trajectory=False, 
+                 train_cfg=None, 
+                 test_cfg=None):
+
+        super().__init__(in_channels, num_joints, max_norm, loss_keypoint, is_trajectory, train_cfg, test_cfg)
+        self.num_root_joints = num_root_joints
+        self.real_num_joints = self.num_joints // self.num_root_joints
+        
+    def forward(self, x):
+        output = super().forward(x)
+        N = output.shape[0]
+        return output.reshape(N, self.num_root_joints, self.real_num_joints, 3)
+    
+    def decode(self, metas, output):
+        
+        # Denormalize the predicted pose
+        target_mean = np.stack([m['target_mean'] for m in metas])
+        target_std = np.stack([m['target_std'] for m in metas])
+        output = self._denormalize_joints(output, target_mean, target_std)
+
+        # Restore global position
+        root_pos = np.stack([m['root_position'] for m in metas])
+        output = self._restore_global_position(output, root_pos)
+
+        target_image_paths = [m.get('target_image_path', None) for m in metas]
+        result = {'preds': output, 'target_image_paths': target_image_paths}
+
+        return result
+    
+    def get_loss(self, output, target, target_weight=None):
+        assert output.shape == target.shape
+        N, _, _, C = output.shape
+        output = output.reshape(N, -1, C)
+        target = target.reshape(N, -1, C)
+        if target_weight is not None:
+            target_weight = target_weight.reshape(N, -1, C)
+        losses = super().get_loss(output, target, target_weight)
+        return losses
+    
+    @staticmethod
+    def _restore_global_position(x, root_pos):
+        """
+            x:        [B, 6, 42, 3]
+            root_pos: [B, 6, 3]
+        """
+        output = x + root_pos[:, :, np.newaxis, :]
+        output = output.mean(axis=1)
+        output = np.concatenate([root_pos, output], axis=1)
+        return output
+    
+    def get_accuracy(self, output, target, target_weight, metas):
+        """
+            output: [B, 6, 42, 3]
+            target: [B, 6, 42, 3]
+            target_weight: None
+        """
+        accuracy = dict()
+
+        N = output.shape[0]
+        output_ = output.detach().cpu().numpy()
+        target_ = target.detach().cpu().numpy()
+        
+        # Denormalize the predicted pose
+        target_mean = np.stack([m['target_mean'] for m in metas])
+        target_std = np.stack([m['target_std'] for m in metas])
+        output_ = self._denormalize_joints(output_, target_mean, target_std)
+        target_ = self._denormalize_joints(target_, target_mean, target_std)
+            
+        # Restore global position
+        root_pos = np.stack([m['root_position'] for m in metas])
+        output_ = self._restore_global_position(output_, root_pos)
+        target_ = self._restore_global_position(target_, root_pos)
+            
+         # Get target weight
+        if target_weight is None:
+            target_weight_ = np.ones_like(target_)
+        else:
+            raise NotImplementedError
+                
+        mpjpe = np.mean(
+            np.linalg.norm((output_ - target_) * target_weight_, axis=-1))
+
+        transformed_output = np.zeros_like(output_)
+        for i in range(N):
+            transformed_output[i, :, :] = compute_similarity_transform(
+                output_[i, :, :], target_[i, :, :])
+        p_mpjpe = np.mean(
+            np.linalg.norm(
+                (transformed_output - target_) * target_weight_, axis=-1))
+
+        accuracy['mpjpe'] = output.new_tensor(mpjpe)
+        accuracy['p_mpjpe'] = output.new_tensor(p_mpjpe)
+
+        return accuracy
+    
+    @staticmethod
+    def _denormalize_joints(x, mean, std):
+        assert x.ndim == 4
+        assert x.shape == mean.shape == std.shape
+        return x * std + mean
+    
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@HEADS.register_module()
+class HandLocalAndGlobalTemporalRegressionHead(TemporalRegressionHead):
+    
+    def __init__(self, 
+                 in_channels, 
+                 num_joints, 
+                 real_num_joints,
+                 max_norm=None, 
+                 loss_keypoint=None, 
+                 loss_rel_keypoint=None,
+                 is_trajectory=False, 
+                 train_cfg=None, 
+                 test_cfg=None):
+
+        super().__init__(in_channels, num_joints, max_norm, loss_keypoint, is_trajectory, train_cfg, test_cfg)
+        self.real_num_joints = real_num_joints
+        self.loss_rel = build_loss(loss_rel_keypoint)
+        
+    def get_loss(self, output, target, target_weight):
+        
+        losses = dict()
+        assert not isinstance(self.loss, nn.Sequential)
+
+        if self.is_trajectory:
+            raise NotImplementedError
+        else:
+            if target_weight is None:
+                target_weight = target.new_ones(target.shape)
+            assert target.dim() == 3 and target_weight.dim() == 3
+            losses['reg1_loss'] = self.loss(output[:, :self.real_num_joints], target[:, :self.real_num_joints], target_weight[:, :self.real_num_joints])
+            losses['reg2_loss'] = self.loss_rel(output[:, self.real_num_joints:], target[:, self.real_num_joints:], target_weight[:, self.real_num_joints:])
+
+        return losses
+    
+    def decode(self, metas, output):
+        
+        # Denormalize the predicted pose
+        target_mean = np.stack([m['target_mean'] for m in metas])
+        target_std = np.stack([m['target_std'] for m in metas])
+        output = self._denormalize_joints(output, target_mean, target_std)
+
+        # Restore global position
+        root_pos = np.stack([m['root_position'] for m in metas])
+        output = self._restore_global_position(output, root_pos, metas[0]['parents'])
+
+        target_image_paths = [m.get('target_image_path', None) for m in metas]
+        result = {'preds': output, 'target_image_paths': target_image_paths}
+        return result
+    
+    def _restore_global_position(self, x, root_pos, parents):
+        """
+            x:        [B, 42, 3]
+            root_pos: [B, 1, 3]
+            parents: list
+        """
+        num_joints = self.real_num_joints
+        global_offsets = x[:, :num_joints, :]
+        coords1 = global_offsets + root_pos
+        # [B, 22, 3]
+        coords1 = np.concatenate([root_pos, coords1], axis=1)
+        
+        # return coords1
+        
+        # [B, 21, 3]
+        local_offsets = x[:, num_joints:, :]
+        # [B, 22, 3]
+        coords2 = np.zeros_like(coords1)
+        coords2[:, 0:1, :] = root_pos
+        for i in range(num_joints):
+            coords2[:, i+1, :] = local_offsets[:, i, :] + coords2[:, parents[i+1], :]
+        
+        output = (coords1 + coords2) / 2
+        return output
+    
+    def get_accuracy(self, output, target, target_weight, metas):
+        """
+            output: [B, 42, 3]
+            target: [B, 42, 3]
+            target_weight: None
+        """
+        accuracy = dict()
+
+        N = output.shape[0]
+        output_ = output.detach().cpu().numpy()
+        target_ = target.detach().cpu().numpy()
+        
+        # Denormalize the predicted pose
+        target_mean = np.stack([m['target_mean'] for m in metas])
+        target_std = np.stack([m['target_std'] for m in metas])
+        output_ = self._denormalize_joints(output_, target_mean, target_std)
+        target_ = self._denormalize_joints(target_, target_mean, target_std)
+            
+        # Restore global position
+        root_pos = np.stack([m['root_position'] for m in metas])
+        output_ = self._restore_global_position(output_, root_pos, metas[0]['parents'])
+        target_ = self._restore_global_position(target_, root_pos, metas[0]['parents'])
+            
+        # Get target weight
+        if target_weight is None:
+            target_weight_ = np.ones_like(target_)
+        else:
+            raise NotImplementedError
+                
+        mpjpe = np.mean(
+            np.linalg.norm((output_ - target_) * target_weight_, axis=-1))
+
+        transformed_output = np.zeros_like(output_)
+        for i in range(N):
+            transformed_output[i, :, :] = compute_similarity_transform(
+                output_[i, :, :], target_[i, :, :])
+        p_mpjpe = np.mean(
+            np.linalg.norm(
+                (transformed_output - target_) * target_weight_, axis=-1))
+
+        accuracy['mpjpe'] = output.new_tensor(mpjpe)
+        accuracy['p_mpjpe'] = output.new_tensor(p_mpjpe)
+
+        return accuracy

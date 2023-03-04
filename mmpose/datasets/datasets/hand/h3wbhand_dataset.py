@@ -318,3 +318,176 @@ class Hand3DH3WBDataset(Kpt3dSviewKpt2dDataset):
         """Get camera parameters of a frame by its image name."""
         assert hasattr(self, 'camera_param')
         return self.camera_param[imgname[:-11]]
+
+
+
+@DATASETS.register_module()
+class DoubleHands3DH3WBDataset(Hand3DH3WBDataset):
+    def __init__(self,
+                 ann_file,
+                 img_prefix,
+                 data_cfg,
+                 pipeline,
+                 dataset_info=None,
+                 test_mode=False):
+        
+        self.larm_indices = [5, 7, 9]
+        self.rarm_indices = [6, 8, 10]
+        self.lhand_indices = list(range(91, 112))
+        self.rhand_indices = list(range(112, 133)) 
+        self.hand_indices = self.lhand_indices + self.rhand_indices
+        self.all_indices = self.larm_indices + self.rarm_indices + self.lhand_indices + self.rhand_indices
+        
+        super().__init__(
+            ann_file,
+            img_prefix,
+            data_cfg,
+            pipeline,
+            dataset_info=dataset_info,
+            test_mode=test_mode)
+        
+    def prepare_data(self, idx):
+        data = self.data_info
+        frame_ids = self.sample_indices[idx]
+        assert len(frame_ids) == self.seq_len
+
+        # get the 3D/2D pose sequence
+        # [seq_len, 48, 4]
+        _joints_3d = data['joints_3d'][frame_ids]
+        
+        # [seq_len, 48, 3]
+        _joints_2d = data['joints_2d'][frame_ids]
+
+        # get the image info
+        _imgnames = data['imgnames'][frame_ids]
+        _centers = data['centers'][frame_ids]
+        _scales = data['scales'][frame_ids]
+        if _scales.ndim == 1:
+            _scales = np.stack([_scales, _scales], axis=1)
+
+        target_idx = -1 if self.causal else int(self.seq_len) // 2
+
+        results = {
+            # [seq_len, 48, 2]
+            'input_2d': _joints_2d[:, :, :2],
+            # [seq_len, 48, 1]
+            'input_2d_visible': _joints_2d[:, :, -1:],
+            # [seq_len, 48, 3]
+            'input_3d': _joints_3d[:, :, :3],
+            # [seq_len, 48, 1]
+            'input_3d_visible': _joints_3d[:, :, -1:],
+            
+            # 'target_idx': target_idx,
+            
+            # [48, 3]
+            'target': _joints_3d[target_idx, :, :3],
+            # [48, 1]
+            'target_visible': _joints_3d[target_idx, :, -1:],
+            
+            'image_paths': _imgnames,
+            'target_image_path': _imgnames[target_idx],
+            'scales': _scales,
+            'centers': _centers,
+        }
+        return results
+    
+    def load_annotations(self):
+        """Load data annotation."""
+        data = np.load(self.ann_file)
+
+        # get image info
+        _imgnames = data['imgname']
+        num_imgs = len(_imgnames)
+        num_joints = self.ann_info['num_joints']
+
+        if 'scale' in data:
+            _scales = data['scale'].astype(np.float32)
+        else:
+            _scales = np.zeros(num_imgs, dtype=np.float32)
+
+        if 'center' in data:
+            _centers = data['center'].astype(np.float32)
+        else:
+            _centers = np.zeros((num_imgs, 2), dtype=np.float32)
+
+        # get 3D pose
+        if 'S' in data.keys():
+            _joints_3d = data['S'].astype(np.float32)
+        else:
+            _joints_3d = np.zeros((num_imgs, num_joints, 4), dtype=np.float32)
+
+        # get 2D pose
+        if 'part' in data.keys():
+            _joints_2d = data['part'].astype(np.float32)
+        else:
+            _joints_2d = np.zeros((num_imgs, num_joints, 3), dtype=np.float32)
+
+        data_info = {
+            'imgnames': _imgnames,
+            'joints_3d': _joints_3d[:, self.all_indices],
+            'joints_2d': _joints_2d[:, self.all_indices],
+            'scales': _scales,
+            'centers': _centers,
+        }
+
+        return data_info
+    
+    
+
+@DATASETS.register_module()
+class LocalAndGlobalHand3DH3WBDataset(Hand3DH3WBDataset):
+    
+    def __init__(self, 
+                 ann_file, 
+                 img_prefix, 
+                 data_cfg, 
+                 pipeline, 
+                 dataset_info=None, 
+                 test_mode=False):
+        super().__init__(ann_file, img_prefix, data_cfg, pipeline, dataset_info, test_mode)
+        
+        
+    def prepare_data(self, idx):
+        data = self.data_info
+        frame_ids = self.sample_indices[idx]
+        assert len(frame_ids) == self.seq_len
+
+        # get the 3D/2D pose sequence
+        # [seq_len, 22, 4]
+        _joints_3d = data['joints_3d'][frame_ids]
+        
+        # [seq_len, 22, 3]
+        _joints_2d = data['joints_2d'][frame_ids]
+
+        # get the image info
+        _imgnames = data['imgnames'][frame_ids]
+        _centers = data['centers'][frame_ids]
+        _scales = data['scales'][frame_ids]
+        if _scales.ndim == 1:
+            _scales = np.stack([_scales, _scales], axis=1)
+
+        target_idx = -1 if self.causal else int(self.seq_len) // 2
+
+        results = {
+            # [seq_len, 22, 2]
+            'input_2d': _joints_2d[:, :, :2],
+            # [seq_len, 22, 1]
+            'input_2d_visible': _joints_2d[:, :, -1:],
+            # [seq_len, 22, 3]
+            'input_3d': _joints_3d[:, :, :3],
+            # [seq_len, 22, 1]
+            'input_3d_visible': _joints_3d[:, :, -1:],
+            
+            # [22, 3]
+            'target': _joints_3d[target_idx, :, :3],
+            # [22, 1]
+            'target_visible': _joints_3d[target_idx, :, -1:],
+            
+            'image_paths': _imgnames,
+            'target_image_path': _imgnames[target_idx],
+            'scales': _scales,
+            'centers': _centers,
+        }
+        return results
+        
+    
