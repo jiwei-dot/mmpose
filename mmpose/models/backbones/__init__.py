@@ -13,7 +13,7 @@ from .mspn import MSPN
 from .pvt import PyramidVisionTransformer, PyramidVisionTransformerV2
 from .regnet import RegNet
 from .resnest import ResNeSt
-from .resnet import ResNet, ResNetV1d
+from .resnet import ResNet, ResNetV1d, CA_ResNet
 from .resnext import ResNeXt
 from .rsn import RSN
 from .scnet import SCNet
@@ -35,5 +35,6 @@ __all__ = [
     'SEResNet', 'SEResNeXt', 'ShuffleNetV1', 'ShuffleNetV2', 'CPM', 'RSN',
     'MSPN', 'ResNeSt', 'VGG', 'TCN', 'ViPNAS_ResNet', 'ViPNAS_MobileNetV3',
     'LiteHRNet', 'V2VNet', 'HRFormer', 'PyramidVisionTransformer',
-    'PyramidVisionTransformerV2', 'SwinTransformer', 'I3D', 'TCFormer'
+    'PyramidVisionTransformerV2', 'SwinTransformer', 'I3D', 'TCFormer',
+    'CA_ResNet'
 ]
