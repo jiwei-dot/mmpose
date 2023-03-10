@@ -7,8 +7,14 @@ from .onehand10k_dataset import OneHand10KDataset
 from .panoptic_hand2d_dataset import PanopticDataset
 from .rhd2d_dataset import Rhd2DDataset
 
+# add by jiwei
+from .hand_h3wb_dataset import LocalAndGlobalHand3DH3WBDataset
+
+
 __all__ = [
     'FreiHandDataset', 'InterHand2DDataset', 'InterHand3DDataset',
     'OneHand10KDataset', 'PanopticDataset', 'Rhd2DDataset',
-    'HandCocoWholeBodyDataset'
+    'HandCocoWholeBodyDataset',
+    # add by jiwei
+    'LocalAndGlobalHand3DH3WBDataset'
 ]
