@@ -17,11 +17,17 @@ from .topdown_heatmap_simple_head import TopdownHeatmapSimpleHead
 from .vipnas_heatmap_simple_head import ViPNASHeatmapSimpleHead
 from .voxelpose_head import CuboidCenterHead, CuboidPoseHead
 
+# add by jiwei
+from .temporal_regression_head import HandLocalAndGlobalTemporalRegressionHead
+
+
 __all__ = [
     'TopdownHeatmapSimpleHead', 'TopdownHeatmapMultiStageHead',
     'TopdownHeatmapMSMUHead', 'TopdownHeatmapBaseHead',
     'AEHigherResolutionHead', 'AESimpleHead', 'AEMultiStageHead', 'CIDHead',
     'DeepposeRegressionHead', 'TemporalRegressionHead', 'Interhand3DHead',
     'HMRMeshHead', 'DeconvHead', 'ViPNASHeatmapSimpleHead', 'CuboidCenterHead',
-    'CuboidPoseHead', 'MultiModalSSAHead', 'DEKRHead'
+    'CuboidPoseHead', 'MultiModalSSAHead', 'DEKRHead',
+    # add by jiwei
+    'HandLocalAndGlobalTemporalRegressionHead'
 ]
