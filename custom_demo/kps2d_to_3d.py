@@ -20,6 +20,24 @@ from mmpose.core import Smoother
 # 3. foot ground contact
 
 
+def convert_cocowholebody_to_h36m(single_frame_list):
+    # single_frame_list: [dict(wholebody_keypoints, track_id), ...]
+    new_single_frame_list = []
+    for single_person in single_frame_list:
+        wholebody_keypoints = single_person['wholebody_keypoints']
+        assert tuple(wholebody_keypoints.shape) == (133, 3)
+        track_id = single_person['track_id']
+        body_keypoints = coco_to_part(wholebody_keypoints, 'body')
+        lhand_keypoints = coco_to_part(wholebody_keypoints, 'lhand')
+        rhand_keypoints = coco_to_part(wholebody_keypoints, 'rhand')
+        lfoot_keypoints = coco_to_part(wholebody_keypoints, 'lfoot')
+        rfoot_keypoints = coco_to_part(wholebody_keypoints, 'rfoot')
+        keypoints = np.concatenate([body_keypoints, lhand_keypoints, rhand_keypoints, lfoot_keypoints, rfoot_keypoints], axis=0)
+        new_single_frame_list.append({
+            'h36m_keypoints': keypoints,
+            'track_id': track_id
+        })
+    return new_single_frame_list
 
 
 def coco_to_part(keypoints, part):
@@ -41,19 +59,45 @@ def coco_to_part(keypoints, part):
             keypoints[[12, 14, 16, 11, 13, 15, 0, 5, 7, 9, 6, 8, 10]]
         return keypoints_new
     elif part == 'lhand':
-        indices = [9, ]
-        indices.extend(list(range(91, 112)))
+        # indices = [9, ]
+        # indices.extend(list(range(91, 112)))
+        indices = list(range(91, 112))
         return keypoints[indices, ...]
     elif part == 'rhand':
-        indices = [10, ]
-        indices.extend(list(range(112, 133)))
+        # indices = [10, ]
+        # indices.extend(list(range(112, 133)))
+        indices = list(range(112, 133))
         return keypoints[indices, ...]
     elif part == 'lfoot':
-        return keypoints[[15, 17, 18, 19], ...]
+        # return keypoints[[15, 17, 18, 19], ...]
+        return keypoints[[17, 18, 19], ...]
     elif part == 'rfoot':
-        return keypoints[[16, 20, 21, 22], ...]
+        # return keypoints[[16, 20, 21, 22], ...]
+        return keypoints[[20, 21, 22], ...]
     else:
         raise ValueError
+    
+    
+def h36m_to_part(keypoints, part):
+    assert part in ('body', 'lhand', 'rhand', 'lfoot', 'rfoot')
+    if part == 'body':
+        indices = list(range(17))
+    elif part == 'lhand':
+        indices = [13, ]
+        indices.extend(list(range(17, 38)))
+        return keypoints[indices, ...]
+    elif part == 'rhand':
+        indices = [16, ]
+        indices.extend(list(range(38, 59)))
+    elif part == 'lfoot':
+        indices = [6, ]
+        indices.extend(list(range(59, 62)))
+    elif part == 'rfoot':
+        indices = [3, ]
+        indices.extend(list(range(62, 65)))
+    else:
+        raise ValueError
+    return keypoints[indices, ...]
 
 
 def get_parser():
@@ -222,7 +266,6 @@ def postprocess_hands_inplace(person, pre_frame_id, post_frame_id, video_output_
             person['wholebody_keypoints'][-21:, :] = person['right_hand_keypoints']
             
         
-
 def kpts2bbox(kpts, img_w, img_h, scale_factor = 1.2):
     x1 = np.min(kpts[:, 0])
     y1 = np.min(kpts[:, 1])
@@ -245,7 +288,7 @@ def extract_results_2d(single_frame_list, part, img_w, img_h):
     assert part in ('body', 'lhand', 'rhand', 'lfoot', 'rfoot')
     results_2d_list = []
     for person in single_frame_list:
-        keypoints = coco_to_part(person['wholebody_keypoints'], part)
+        keypoints = h36m_to_part(person['h36m_keypoints'], part)
         results_2d_list.append({
             'keypoints': keypoints,
             'track_id': person['track_id'],
@@ -318,7 +361,7 @@ def main(args):
     if args.smooth:
         smoother = Smoother(
             filter_cfg=args.smooth_filter_cfg,
-            keypoint_key='wholebody_keypoints',
+            keypoint_key='h36m_keypoints',
             keypoint_dim=2)
     
     for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
@@ -338,9 +381,15 @@ def main(args):
                 'wholebody_keypoints': person['wholebody_keypoints'],
                 'track_id': person['track_id']})
             
+        
+        # before: single_frame_list: [dict(wholebody_keypoints, track_id), ...]
+        single_frame_list = convert_cocowholebody_to_h36m(single_frame_list)
+        # after: single_frame_list: [dict(keypoints, track_id), ...]
+            
+        # 从目前的效果看
         if smoother is not None:
             single_frame_list = smoother.smooth(single_frame_list)
-        
+            
         # extract different part sequence
         body_results_2d = extract_results_2d(single_frame_list, 'body', video.width, video.height)
         lhand_results_2d = extract_results_2d(single_frame_list, 'lhand', video.width, video.height)

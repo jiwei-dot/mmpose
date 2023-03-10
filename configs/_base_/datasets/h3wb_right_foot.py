@@ -29,6 +29,6 @@ dataset_info = dict(
     sigmas=[],
     stats_info=dict(
         bbox_center=[531.35090611, 585.25903187],
-        bbox_scale=0.17149325786209102,
+        bbox_scale=0.17149325786209102 * 200,
     )
 )
