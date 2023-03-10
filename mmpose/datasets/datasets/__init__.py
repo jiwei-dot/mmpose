@@ -27,6 +27,11 @@ from .top_down import (TopDownAicDataset, TopDownCocoDataset,
                        TopDownOCHumanDataset, TopDownPoseTrack18Dataset,
                        TopDownPoseTrack18VideoDataset)
 
+
+# add by jiwei
+from .hand import LocalAndGlobalHand3DH3WBDataset
+from .foot import Foot3DH3WBDataset
+
 __all__ = [
     'TopDownCocoDataset', 'BottomUpCocoDataset', 'BottomUpMhpDataset',
     'BottomUpAicDataset', 'BottomUpCocoWholeBodyDataset', 'TopDownMpiiDataset',
@@ -45,5 +50,8 @@ __all__ = [
     'AnimalATRWDataset', 'AnimalPoseDataset', 'TopDownH36MDataset',
     'TopDownHalpeDataset', 'TopDownPoseTrack18VideoDataset',
     'Body3DMviewDirectPanopticDataset', 'Body3DMviewDirectShelfDataset',
-    'Body3DMviewDirectCampusDataset', 'NVGestureDataset'
+    'Body3DMviewDirectCampusDataset', 'NVGestureDataset',
+    
+    # add by jiwei
+    'LocalAndGlobalHand3DH3WBDataset', 'Foot3DH3WBDataset'
 ]
