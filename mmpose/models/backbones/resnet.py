@@ -1,6 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import copy
 
+import torch
 import torch.nn as nn
 import torch.utils.checkpoint as cp
 from mmcv.cnn import (ConvModule, build_conv_layer, build_norm_layer,
@@ -699,3 +700,108 @@ class ResNetV1d(ResNet):
 
     def __init__(self, **kwargs):
         super().__init__(deep_stem=True, avg_down=True, **kwargs)
+
+
+class CoordAttention(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 reduction=8):
+        super().__init__()
+        self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+        self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
+        mid_channels = max(8, in_channels // reduction)
+        self.conv1 = nn.Conv2d(in_channels, mid_channels, kernel_size=1, stride=1, padding=0)
+        self.bn1 = nn.BatchNorm2d(mid_channels)
+        self.act1 = nn.Hardswish()
+        self.conv_h = nn.Conv2d(mid_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.conv_w = nn.Conv2d(mid_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        
+    def forward(self, x):
+        identity = x
+        N, C, H, W = x.shape
+        # [N, C, H, 1]
+        x_h = self.pool_h(x)
+        # [N, C, W, 1]
+        x_w = self.pool_w(x).permute(0, 1, 3, 2)
+        # [N, C, H+W, 1]
+        x_cat = torch.cat([x_h, x_w], dim=2)
+        out = self.act1(self.bn1(self.conv1(x_cat)))
+        x_h, x_w = torch.split(out, [H, W], dim=2)
+        x_w = x_w.permute(0, 1, 3, 2)
+        out_h = torch.sigmoid(self.conv_h(x_h))
+        out_w = torch.sigmoid(self.conv_w(x_w))
+        out = identity * out_w * out_h
+        return out
+
+class CA_Bottleneck(Bottleneck):
+    
+    def __init__(self, 
+                 in_channels, 
+                 out_channels, 
+                 expansion=4, 
+                 stride=1, 
+                 dilation=1, 
+                 downsample=None, 
+                 style='pytorch', 
+                 with_cp=False, 
+                 conv_cfg=None, 
+                 norm_cfg=dict(type='BN')):
+        super().__init__(in_channels, out_channels, expansion, stride, dilation, downsample, style, with_cp, conv_cfg, norm_cfg)
+        self.ca = CoordAttention(in_channels=out_channels, out_channels=out_channels)
+        
+    def forward(self, x):
+        """Forward function."""
+        identity = x
+
+        out = self.conv1(x)
+        out = self.norm1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.norm2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.norm3(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out = self.ca(out)
+        out += identity
+        out = self.relu(out)
+
+        return out
+    
+    
+@BACKBONES.register_module()
+class CA_ResNet(ResNet):
+    
+    arch_settings = {
+        50: (CA_Bottleneck, (3, 4, 6, 3)),
+        101: (CA_Bottleneck, (3, 4, 23, 3)),
+        152: (CA_Bottleneck, (3, 8, 36, 3))
+    }
+    
+    def __init__(
+        self, 
+        depth, 
+        in_channels=3, 
+        stem_channels=64, 
+        base_channels=64, 
+        expansion=None, 
+        num_stages=4, 
+        strides=(1, 2, 2, 2), 
+        dilations=(1, 1, 1, 1), 
+        out_indices=(3, ), 
+        style='pytorch', 
+        deep_stem=False, 
+        avg_down=False, 
+        frozen_stages=-1, 
+        conv_cfg=None, 
+        norm_cfg=dict(type='BN', requires_grad=True), 
+        norm_eval=False, 
+        with_cp=False, 
+        zero_init_residual=True):
+        super().__init__(depth, in_channels, stem_channels, base_channels, expansion, num_stages, strides, dilations, out_indices, style, deep_stem, avg_down, frozen_stages, conv_cfg, norm_cfg, norm_eval, with_cp, zero_init_residual)

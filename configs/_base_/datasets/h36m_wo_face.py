@@ -277,6 +277,12 @@ dataset_info = dict(
         dict(link=('right_foot', 'right_small_toe'), id=60, color=[255, 128, 0]),
         61:
         dict(link=('right_foot', 'right_heel'), id=61, color=[255, 128, 0]),
+        
+        62:
+        dict(link=('left_wrist', 'left_hand_root'), id=62, color=[0, 255, 0]),
+        63:
+        dict(link=('right_wrist', 'right_hand_root'), id=63, color=[255, 128, 0])
+        
     },
     joint_weights=[],
     sigmas=[]

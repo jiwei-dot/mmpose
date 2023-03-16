@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 import cv2
 import copy
+import os
 import os.path as osp
 
 
@@ -131,6 +132,8 @@ def get_parser():
     
     parser.add_argument('--norm-pose-2d', action='store_true')  
     parser.add_argument('--process-hand', action='store_true')
+    parser.add_argument('--store-kpts3d', action='store_true')
+    
     
     return parser
 
@@ -380,7 +383,8 @@ def main(args):
             filter_cfg=args.smooth_filter_cfg,
             keypoint_key='h36m_keypoints',
             keypoint_dim=2)
-    
+        
+    kpts3d_output_list = []
     for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
         
         pre_frame_id = max(frame_id - 1, 0)
@@ -476,6 +480,9 @@ def main(args):
             keypoints_3d[..., 2] = -keypoints_3d[..., 2]
             keypoints_3d[..., 2] -= np.min(keypoints_3d[..., 2], axis=-1, keepdims=True)
             person['keypoints_3d'] = keypoints_3d
+           
+        if args.store_kpts3d:
+            kpts3d_output_list.append(h36m_wo_face_lift_results)
         
         if len(h36m_wo_face_lift_results) == 0:
             continue
@@ -502,6 +509,12 @@ def main(args):
         writer.write(img_vis)
     
     writer.release()
+    
+    if args.store_kpts3d:
+        name = (os.path.basename(args.video_path)).split('.')[0]
+        out_file_name = f'video_{name}_kpts3d.pkl'
+        with open(os.path.join(args.save_path, out_file_name), 'wb') as fin:
+            pickle.dump(kpts3d_output_list, fin)
         
 
 if __name__ == '__main__':
