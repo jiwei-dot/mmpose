@@ -1,17 +1,14 @@
 _base_ = [
     '../../../../_base_/default_runtime.py',
-    '../../../../_base_/datasets/coco_wholebody_hand.py'
+    '../../../../_base_/datasets/rhd2d.py'
 ]
-
 evaluation = dict(interval=10, metric=['PCK', 'AUC', 'EPE'], save_best='AUC')
 
 optimizer = dict(
     type='Adam',
     lr=5e-4,
 )
-
 optimizer_config = dict(grad_clip=None)
-
 # learning policy
 lr_config = dict(
     policy='step',
@@ -21,7 +18,7 @@ lr_config = dict(
     step=[170, 200])
 total_epochs = 210
 log_config = dict(
-    interval=10,
+    interval=20,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook')
@@ -106,30 +103,30 @@ val_pipeline = [
 
 test_pipeline = val_pipeline
 
-data_root = 'data/coco'
+data_root = 'data/rhd'
 data = dict(
-    samples_per_gpu=48,
+    samples_per_gpu=64,
     workers_per_gpu=2,
     val_dataloader=dict(samples_per_gpu=32),
     test_dataloader=dict(samples_per_gpu=32),
     train=dict(
-        type='HandCocoWholeBodyDataset',
-        ann_file=f'{data_root}/annotations/coco_wholebody_train_v1.0.json',
-        img_prefix=f'{data_root}/train2017/',
+        type='Rhd2DDataset',
+        ann_file=f'{data_root}/annotations/rhd_train.json',
+        img_prefix=f'{data_root}/',
         data_cfg=data_cfg,
         pipeline=train_pipeline,
         dataset_info={{_base_.dataset_info}}),
     val=dict(
-        type='HandCocoWholeBodyDataset',
-        ann_file=f'{data_root}/annotations/coco_wholebody_val_v1.0.json',
-        img_prefix=f'{data_root}/val2017/',
+        type='Rhd2DDataset',
+        ann_file=f'{data_root}/annotations/rhd_test.json',
+        img_prefix=f'{data_root}/',
         data_cfg=data_cfg,
         pipeline=val_pipeline,
         dataset_info={{_base_.dataset_info}}),
     test=dict(
-        type='HandCocoWholeBodyDataset',
-        ann_file=f'{data_root}/annotations/coco_wholebody_val_v1.0.json',
-        img_prefix=f'{data_root}/val2017/',
+        type='Rhd2DDataset',
+        ann_file=f'{data_root}/annotations/rhd_test.json',
+        img_prefix=f'{data_root}/',
         data_cfg=data_cfg,
         pipeline=test_pipeline,
         dataset_info={{_base_.dataset_info}}),

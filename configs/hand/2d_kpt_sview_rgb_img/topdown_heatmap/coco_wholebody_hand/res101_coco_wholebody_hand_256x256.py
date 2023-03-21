@@ -2,16 +2,13 @@ _base_ = [
     '../../../../_base_/default_runtime.py',
     '../../../../_base_/datasets/coco_wholebody_hand.py'
 ]
-
 evaluation = dict(interval=10, metric=['PCK', 'AUC', 'EPE'], save_best='AUC')
 
 optimizer = dict(
     type='Adam',
     lr=5e-4,
 )
-
 optimizer_config = dict(grad_clip=None)
-
 # learning policy
 lr_config = dict(
     policy='step',
@@ -44,13 +41,13 @@ channel_cfg = dict(
 # model settings
 model = dict(
     type='TopDown',
-    pretrained='torchvision://resnet50',
-    backbone=dict(type='CA_ResNet', depth=50),
+    pretrained='torchvision://resnet101',
+    backbone=dict(type='ResNet', depth=101),
     keypoint_head=dict(
         type='TopdownHeatmapSimpleHead',
         in_channels=2048,
         out_channels=channel_cfg['num_output_channels'],
-        loss_keypoint=dict(type='AdaptiveWingLoss', use_target_weight=True)),
+        loss_keypoint=dict(type='JointsMSELoss', use_target_weight=True)),
     train_cfg=dict(),
     test_cfg=dict(
         flip_test=True,
@@ -108,7 +105,7 @@ test_pipeline = val_pipeline
 
 data_root = 'data/coco'
 data = dict(
-    samples_per_gpu=48,
+    samples_per_gpu=32,
     workers_per_gpu=2,
     val_dataloader=dict(samples_per_gpu=32),
     test_dataloader=dict(samples_per_gpu=32),
