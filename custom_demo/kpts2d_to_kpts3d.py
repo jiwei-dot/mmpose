@@ -1,3 +1,5 @@
+# 这部分代码需要重构
+
 from argparse import ArgumentParser
 import pickle
 import numpy as np
@@ -371,6 +373,7 @@ def main(args):
     
     assert len(video) == len(video_kpts2d_list)
     
+    # 初始化所有部位的二维关键点提升网络
     body_lift_model, lhand_lift_model, rhand_lift_model, \
         lfoot_lift_model, rfoot_lift_model = init_lift_models(args)
         
@@ -380,6 +383,7 @@ def main(args):
             filter_cfg=args.smooth_filter_cfg,
             keypoint_key='h36m_keypoints',
             keypoint_dim=2)
+    
     
     for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
         
