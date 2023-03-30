@@ -11,7 +11,7 @@ from detectron2.engine import DefaultPredictor
 
 import mmcv
 from mmdet.apis import init_detector, inference_detector
-from mmpose.apis import init_pose_model, process_mmdet_results, inference_top_down_pose_model, get_track_id
+from mmpose.apis import init_pose_model, process_mmdet_results, inference_top_down_pose_model, get_track_id, vis_pose_result
 from mmpose.datasets import DatasetInfo
 
 
@@ -171,15 +171,16 @@ def get_parser():
     parser.add_argument('--use-oks-tracking', action='store_true')
     parser.add_argument('--tracking-thr', default=0.3, type=float)
     
-    # Filter large hand
-    parser.add_argument('--filter-large-hand', action='store_true')
-    parser.add_argument('--hand-area-thr', default=0.02)
+    # # Filter large hand
+    # parser.add_argument('--filter-large-hand', action='store_true')
+    # parser.add_argument('--hand-area-thr', default=0.02)
     
     return parser
 
 
 def main(args):
        
+    # 分别初始化人体检测网络、手部检测网络、全身二维关键点检测网络、手部二维关键点检测网络
     person_det_model = init_detector(args.person_det_config, args.person_det_checkpoint, device=args.device.lower())
     hand_det_model = init_hand_detector(args)
     wholebody_kps2d_model = init_pose_model(args.wholebody_kps2d_config, args.wholebody_kps2d_checkpoint, device=args.device.lower())
@@ -192,14 +193,15 @@ def main(args):
     frame_hand_bbox_wholebody_kps2d_results = []
     
     for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
-        
+            
         lastframe_hand_bbox_wholebody_kps2d_results = frame_hand_bbox_wholebody_kps2d_results
         
-        # detect people
+        # 针对单张图片检测人体
         mmdet_results = inference_detector(person_det_model, cur_frame)
         person_results = process_mmdet_results(mmdet_results, args.person_det_cat_id)
         
-        # detect wholebody2d_kps for each person in single image
+        # 针对单张图片的所有人体运行全身二维关键点检测网络
+        # wholebody_kps2d_results数据结构：[dict(bbox, keypoints), ...]
         wholebody_kps2d_results, _ = inference_top_down_pose_model(
             wholebody_kps2d_model,
             cur_frame,
@@ -209,17 +211,18 @@ def main(args):
             dataset=wholebody_kps2d_model.cfg.data['test']['type'],
             dataset_info=DatasetInfo(wholebody_kps2d_model.cfg.data['test']['dataset_info']),
             return_heatmap=False,
-            outputs=None,)
-        # wholebody_kps2d_results: [dict(bbox, keypoints), ...]
+            outputs=None)
         
-        # assign left(right) hand for each person
+        # 针对单张图片检测手部，将手部分配给单张图片中的所有人
+        # hand_bbox_wholebody_kps2d_results数据结构：[dict(bbox, keypoints, left_hand_bbox, left_hand_valid, right_hand_bbox, right_hand_valid), ...]
         hand_bbox_wholebody_kps2d_results = inference_hand_model(
             hand_det_model,
             cur_frame,
             wholebody_kps2d_results,
-            args,)
-        # hand_bbox_wholebody_kps2d_results: [dict(bbox, keypoints, left_hand_bbox, left_hand_valid, right_hand_bbox, right_hand_valid), ...]
+            args)
         
+        # 针对单张图片进行目标追踪，为每个人计算`area`并分配一个`track_id`
+        # hand_bbox_wholebody_kps2d_results数据结构：[dict(bbox, keypoints, left_hand_bbox, left_hand_valid, right_hand_bbox, right_hand_valid， area, track_id), ...]
         hand_bbox_wholebody_kps2d_results, next_id = get_track_id(
             hand_bbox_wholebody_kps2d_results,
             lastframe_hand_bbox_wholebody_kps2d_results,
@@ -230,14 +233,16 @@ def main(args):
         # fix bug here
         frame_hand_bbox_wholebody_kps2d_results = hand_bbox_wholebody_kps2d_results
         
+        # 收集单张图片检测出的所有人手
         hand_results_single_frame = []
         for person in hand_bbox_wholebody_kps2d_results:
-            # person: dict(bbox, )
             if person['left_hand_valid']:
                 hand_results_single_frame.append({'bbox': person['left_hand_bbox']})
             if person['right_hand_valid']:
                 hand_results_single_frame.append({'bbox': person['right_hand_bbox']})
         
+        # 针对单张图片所有人手运行手部二维关键点检测网络
+        # hand_kps2d_results数据结构：[dict(bbox, keypoints), ...]
         hand_kps2d_results, _ = inference_top_down_pose_model(
             hand_kps2d_model,
             cur_frame,
@@ -247,9 +252,11 @@ def main(args):
             dataset=hand_kps2d_model.cfg.data['test']['type'],
             dataset_info=DatasetInfo(hand_kps2d_model.cfg.data['test'].get('dataset_info', None)),
             return_heatmap=False,
-            outputs=None,) 
-        # hand_kps2d_results: [dict(bbox, keypoints), ...]
+            outputs=None) 
         
+        # 将手部二维关键点预测值按顺序分配给对应的人
+        # hand_kps2d_hand_bbox_wholebody_2d_results数据结构:
+        # [dict(person_bbox, wholebody_keypoints, left_hand_bbox, left_hand_valid, left_hand_keypoints, right_hand_bbox, right_hand_valid, right_hand_keypoints, area, track_id), ...]
         hand_kps2d_hand_bbox_wholebody_2d_results = copy.deepcopy(hand_bbox_wholebody_kps2d_results)
         hand_idx = 0
         for person in hand_kps2d_hand_bbox_wholebody_2d_results:
@@ -270,29 +277,34 @@ def main(args):
             else:
                 person['right_hand_keypoints'] = np.empty((0, 3))
         
-             
+        #  将list转化为dict方便根据`track_id`进行索引
         single_frame_dict = dict()
         for person in hand_kps2d_hand_bbox_wholebody_2d_results:
-            # todo filter large hand bbox
-            if args.filter_large_hand:
+            
+            # 移动到 kpts2d_kpts3d.py 文件中
+            # # 过滤掉面积占比过大的手部,默认不开启，这里的逻辑暂时存在问题
+            # if args.filter_large_hand:
                 
-                person_area = get_area(person['person_bbox'], person['wholebody_keypoints'])
-                left_hand_area = get_area(person['left_hand_bbox'], person['wholebody_keypoints'][-42:-21, :])
-                right_hand_area = get_area(person['right_hand_bbox'], person['wholebody_keypoints'][-21:, :])
+            #     person_area = get_area(person['person_bbox'], person['wholebody_keypoints'])
+            #     left_hand_area = get_area(person['left_hand_bbox'], person['wholebody_keypoints'][-42:-21, :])
+            #     right_hand_area = get_area(person['right_hand_bbox'], person['wholebody_keypoints'][-21:, :])
                 
-                if left_hand_area > person_area * args.hand_area_thr:
-                    person['left_hand_valid'] = False
-                    person['left_hand_bbox'] = np.empty((0, 5))
-                    person['left_hand_keypoints'] = np.empty((0, 3))
+            #     if left_hand_area > person_area * args.hand_area_thr:
+            #         person['left_hand_valid'] = False
+            #         person['left_hand_bbox'] = np.empty((0, 5))
+            #         person['left_hand_keypoints'] = np.empty((0, 3))
                     
-                if right_hand_area > person_area * args.hand_area_thr:
-                    person['right_hand_valid'] = False
-                    person['right_hand_bbox'] = np.empty((0, 5))
-                    person['right_hand_keypoints'] = np.empty((0, 3))
+            #     if right_hand_area > person_area * args.hand_area_thr:
+            #         person['right_hand_valid'] = False
+            #         person['right_hand_bbox'] = np.empty((0, 5))
+            #         person['right_hand_keypoints'] = np.empty((0, 3))
             
             single_frame_dict[person['track_id']] = person
-                
-        # video_output_list.append(hand_kps2d_hand_bbox_wholebody_2d_results)
+        
+        # 输出人体检测为空的帧数
+        if len(single_frame_dict) == 0:
+            print(f"frame {frame_id} is empty.")
+            
         video_output_list.append(single_frame_dict)
 
     name = (os.path.basename(args.video_path)).split('.')[0]

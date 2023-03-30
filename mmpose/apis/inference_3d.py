@@ -108,7 +108,7 @@ def _gather_pose_lifter_inputs(pose_results,
                 bbox = res['bbox']
                 center = np.array([[(bbox[0] + bbox[2]) / 2,
                                     (bbox[1] + bbox[3]) / 2]])
-                scale = max(bbox[2] - bbox[0], bbox[3] - bbox[1])
+                scale = max(1, max(bbox[2] - bbox[0], bbox[3] - bbox[1]))
                 inputs['keypoints'] = (res['keypoints'][:, :2] - center) \
                     / scale * bbox_scale + bbox_center
             else:
