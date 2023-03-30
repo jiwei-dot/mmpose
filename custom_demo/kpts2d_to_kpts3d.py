@@ -1,3 +1,5 @@
+# 这部分代码需要重构
+
 from argparse import ArgumentParser
 import pickle
 import numpy as np
@@ -40,7 +42,8 @@ def convert_cocowholebody_to_h36m(single_frame_list):
     return new_single_frame_list
 
 
-def coco_to_part(keypoints, part):
+def coco_to_part(keypoints, part, extra=True):
+    # extra: 手脚部位多包含一个关键点
     assert part in ('body', 'lhand', 'rhand', 'lfoot', 'rfoot')
     if part == 'body':
         keypoints_new = np.zeros((17, keypoints.shape[1]), dtype=keypoints.dtype)
@@ -58,24 +61,32 @@ def coco_to_part(keypoints, part):
         keypoints_new[[1, 2, 3, 4, 5, 6, 9, 11, 12, 13, 14, 15, 16]] = \
             keypoints[[12, 14, 16, 11, 13, 15, 0, 5, 7, 9, 6, 8, 10]]
         return keypoints_new
+    
     elif part == 'lhand':
         # indices = [9, ]
         # indices.extend(list(range(91, 112)))
         indices = list(range(91, 112))
-        return keypoints[indices, ...]
+        if extra:
+            indices.insert(0, 9)
     elif part == 'rhand':
         # indices = [10, ]
         # indices.extend(list(range(112, 133)))
         indices = list(range(112, 133))
-        return keypoints[indices, ...]
+        if extra:
+            indices.insert(0, 10)
     elif part == 'lfoot':
         # return keypoints[[15, 17, 18, 19], ...]
-        return keypoints[[17, 18, 19], ...]
+        indices = [17, 18, 19]
+        if extra:
+            indices.insert(0, 15)
     elif part == 'rfoot':
         # return keypoints[[16, 20, 21, 22], ...]
-        return keypoints[[20, 21, 22], ...]
+        indices = [20, 21, 22]
+        if extra:
+            indices.insert(0, 16)
     else:
         raise ValueError
+    return keypoints[indices, ...]
     
     
 def h36m_to_part(keypoints, part):
@@ -128,9 +139,10 @@ def get_parser():
     parser.add_argument('--smooth', action='store_true')
     parser.add_argument('--smooth-filter-cfg', default='configs/_base_/filters/smoothnet_t64_h36m.py')
     
-    
     parser.add_argument('--norm-pose-2d', action='store_true')  
-    parser.add_argument('--process-hand', action='store_true')
+    
+    parser.add_argument('--complex-process-hand', action='store_true')
+    parser.add_argument('--hand-area-thr', default=0.02)
     
     return parser
 
@@ -290,11 +302,24 @@ def kpts2bbox(kpts, img_w, img_h, scale_factor = 1.2):
     return np.array([new_x1, new_y1, new_x2, new_y2])
 
         
+# def extract_results_2d(single_frame_list, part, img_w, img_h):
+#     assert part in ('body', 'lhand', 'rhand', 'lfoot', 'rfoot')
+#     results_2d_list = []
+#     for person in single_frame_list:
+#         keypoints = h36m_to_part(person['h36m_keypoints'], part)
+#         results_2d_list.append({
+#             'keypoints': keypoints,
+#             'track_id': person['track_id'],
+#             'bbox': kpts2bbox(keypoints, img_w, img_h),
+#         })
+#     return results_2d_list
+
+
 def extract_results_2d(single_frame_list, part, img_w, img_h):
     assert part in ('body', 'lhand', 'rhand', 'lfoot', 'rfoot')
     results_2d_list = []
     for person in single_frame_list:
-        keypoints = h36m_to_part(person['h36m_keypoints'], part)
+        keypoints = person[f'{part}_keypoints']
         results_2d_list.append({
             'keypoints': keypoints,
             'track_id': person['track_id'],
@@ -344,6 +369,226 @@ def merge_kpts_according_trackid(need_merge_kpts_list):
     return wholebody_wo_face_lift_results
 
 
+def get_area_of_bbox(bbox):
+    if len(bbox) != 0:
+        x1, y1, x2, y2, _ = bbox
+        return (x2 - x1) * (y2 - y1)
+    else:
+        return float('inf')
+
+
+def get_area_of_kpts(kpts):
+    x1 = np.min(kpts[:, 0])
+    y1 = np.min(kpts[:, 1])
+    x2 = np.max(kpts[:, 0])
+    y2 = np.max(kpts[:, 1])
+    return (x2 - x1) * (y2 - y1)
+
+
+def replace_lefthand_with_righthand(keypoints_a, keypoints_b):
+    # keypoints_a: 133 x 3
+    # keypoints_b: 133 x 3
+    new_keypoints_a = copy.deepcopy(keypoints_a)
+    new_keypoints_a[-42: -21, :2] = keypoints_b[-21:, :2] + keypoints_b[9][:2] - keypoints_b[10][:2]
+    c = new_keypoints_a[9, :2]
+    
+    # 1. 计算右臂夹角
+    vec1 = keypoints_b[10, :2] - keypoints_b[8, :2]
+    vec2 = keypoints_b[112, :2] - keypoints_b[10, :2]
+    cos_ = np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-6)
+    sin_ = np.cross(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-6)
+    arctan2_ = np.arctan2(sin_, cos_)
+    theta1 = arctan2_ / np.pi
+    
+    # 2. 计算左臂夹角
+    vec1 = new_keypoints_a[9, :2] - new_keypoints_a[7, :2]
+    vec2 = new_keypoints_a[91, :2] - new_keypoints_a[9, :2]
+    cos_ = np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-6)
+    sin_ = np.cross(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-6)
+    arctan2_ = np.arctan2(sin_, cos_)
+    theta2 = arctan2_ / np.pi
+    
+    r = (theta2 + theta1) * 180
+    s = 1
+    M = cv2.getRotationMatrix2D(c, r, s)
+    new_keypoints_a[-42: -21, :2] = np.column_stack([new_keypoints_a[-42: -21, :2], np.ones(len(new_keypoints_a[-42: -21, :2]))]) @ M.T
+    
+    # 3. 根据左手镜像翻转
+    line_pt = new_keypoints_a[9, :2]
+    line_vec = new_keypoints_a[91, :2] - line_pt
+    for i in range(-42, -21, 1):
+        pt_vec = new_keypoints_a[i, :2] - line_pt
+        proj_vec = np.dot(pt_vec, line_vec) / (np.dot(line_vec, line_vec) + 1e-6) * line_vec
+        pt_sym = line_pt + 2 * proj_vec - pt_vec
+        new_keypoints_a[i, :2] = pt_sym
+        
+    # person['wholebody_keypoints'][-42:-21, :] = person['left_hand_keypoints']
+    return new_keypoints_a
+
+
+def replace_righthand_with_lefthand(keypoints_a, keypoints_b):
+    new_keypoints_a = copy.deepcopy(keypoints_a)
+    new_keypoints_a[-21:, :2] = keypoints_b[-42:-21, :2] + keypoints_b[10][:2] - keypoints_b[9][:2] 
+    c = new_keypoints_a[10, :2]
+    
+    # 1. 计算左臂夹角
+    vec1 = keypoints_b[9, :2] - keypoints_b[7, :2]
+    vec2 = keypoints_b[91, :2] - keypoints_b[9, :2]
+    cos_ = np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-6)
+    sin_ = np.cross(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-6)
+    arctan2_ = np.arctan2(sin_, cos_)
+    theta1 = arctan2_ / np.pi
+    
+    # 2. 计算右臂夹角
+    vec1 = new_keypoints_a[10, :2] - new_keypoints_a[8, :2]
+    vec2 = new_keypoints_a[112, :2] - new_keypoints_a[10, :2]
+    cos_ = np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-6)
+    sin_ = np.cross(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2) + 1e-6)
+    arctan2_ = np.arctan2(sin_, cos_)
+    theta2 = arctan2_ / np.pi
+    
+    r = (theta2 + theta1) * 180
+    s = 1
+    M = cv2.getRotationMatrix2D(c, r, s)
+    new_keypoints_a[-21:, :2] = np.column_stack([new_keypoints_a[-21:, :2], np.ones(len(new_keypoints_a[-21:, :2]))]) @ M.T
+    
+    # 3. 根据右手镜像翻转
+    line_pt = new_keypoints_a[10, :2]
+    line_vec = new_keypoints_a[112, :2] - line_pt
+    for i in range(-21, 0):
+        pt_vec = new_keypoints_a[i, :2] - line_pt
+        proj_vec = np.dot(pt_vec, line_vec) / (np.dot(line_vec, line_vec) + 1e-6) * line_vec
+        pt_sym = line_pt + 2 * proj_vec - pt_vec
+        new_keypoints_a[i, :2] = pt_sym
+    # person['wholebody_keypoints'][-21:, :] = person['right_hand_keypoints']
+    return new_keypoints_a
+
+
+def complex_process_hand_in_single_frame(args, single_frame_dict, video_kpts2d_list, frame_id):
+    # single_frame_dict数据结构: dict(track_id:dict('left_hand_bbox', 'left_hand_valid', 'right_hand_bbox', 'right_hand_valid', 'area', 'track_id', 'person_bbox', 'wholebody_keypoints', 'left_hand_keypoints', 'right_hand_keypoints'), ...)
+    new_single_frame_dict = copy.deepcopy(single_frame_dict)
+    for track_id, person in new_single_frame_dict.items():
+        
+        wholebody_keypoints = person['wholebody_keypoints']
+        person_bbox = person['person_bbox']
+        person_box_area = get_area_of_bbox(person_bbox)
+        lhand_kpts_area = get_area_of_kpts(wholebody_keypoints[-42:-21, :])
+        rhand_kpts_area = get_area_of_kpts(wholebody_keypoints[-21:, :])
+        
+        left_hand_valid = person['left_hand_valid']
+        left_hand_keypoints = person['left_hand_keypoints']
+        left_hand_bbox = person['left_hand_bbox']
+        lhand_box_area = get_area_of_bbox(left_hand_bbox)
+        
+        right_hand_valid = person['right_hand_valid']
+        right_hand_keypoints = person['right_hand_keypoints']
+        right_hand_bbox = person['right_hand_bbox']
+        rhand_box_area = get_area_of_bbox(right_hand_bbox)
+        
+        # 处理左手
+        
+        # 检测到左手且比例合适
+        if left_hand_valid and lhand_box_area / person_box_area <= args.hand_area_thr:
+            person['wholebody_keypoints'][-42:-21, :] = left_hand_keypoints
+        else:
+            # 未检测到左手或检测到但比例不合适
+            # 检测到右手且比例合适
+            if right_hand_valid and rhand_box_area / person_box_area <= args.hand_area_thr:
+                # replace
+                keypoints_a = wholebody_keypoints
+                keypoints_b = copy.deepcopy(wholebody_keypoints)
+                keypoints_b[-21:, :] = right_hand_keypoints
+                person['wholebody_keypoints'] = replace_lefthand_with_righthand(keypoints_a, keypoints_b)
+            else:
+                # 未检测到右手或检测到但比例不合适
+                # TcFormer预测左手比例合适,结束考虑
+                if lhand_kpts_area / person_box_area <= args.hand_area_thr:
+                    pass
+                # TcFormer预测右手比例合适
+                elif rhand_kpts_area / person_box_area <= args.hand_area_thr:
+                    # replace
+                    keypoints_a = wholebody_keypoints
+                    keypoints_b = copy.deepcopy(wholebody_keypoints)
+                    person['wholebody_keypoints'] = replace_lefthand_with_righthand(keypoints_a, keypoints_b)
+                else:
+                    # use pre frame
+                    if frame_id == 0 or video_kpts2d_list[frame_id-1].get(track_id, None) is None:
+                        pass
+                    else:
+                        person['wholebody_keypoints'][-42:-21, :] = video_kpts2d_list[frame_id-1][track_id]['wholebody_keypoints'][-42:-21, :]
+                        
+                    
+                
+        # 处理右手
+        
+        # 检测到右手且比例合适
+        if right_hand_valid and rhand_box_area / person_box_area <= args.hand_area_thr:
+            person['wholebody_keypoints'][-21:, :] = right_hand_keypoints
+        else:
+            # 未检测到右手或检测到但比例不合适
+            # 检测到左手且比例合适
+            if left_hand_valid and lhand_box_area / person_box_area <= args.hand_area_thr:
+                # replace
+                keypoints_a = wholebody_keypoints
+                keypoints_b = copy.deepcopy(wholebody_keypoints)
+                keypoints_b[-42:-21, :] = left_hand_keypoints
+                person['wholebody_keypoints'] = replace_righthand_with_lefthand(keypoints_a, keypoints_b)
+            else:
+                # 未检测到左手或检测到但比例不合适
+                # TcFormer预测右手比例合适,结束考虑
+                if rhand_kpts_area / person_box_area <= args.hand_area_thr:
+                    pass
+                # TcFormer预测左手比例合适
+                elif lhand_kpts_area / person_box_area <= args.hand_area_thr:
+                    # replace
+                    keypoints_a = wholebody_keypoints
+                    keypoints_b = copy.deepcopy(wholebody_keypoints)
+                    person['wholebody_keypoints'] = replace_righthand_with_lefthand(keypoints_a, keypoints_b)
+                else:
+                    # use pre frame
+                    if frame_id == 0 or video_kpts2d_list[frame_id-1].get(track_id, None) is None:
+                        pass
+                    else:
+                        person['wholebody_keypoints'][-21:, :] = video_kpts2d_list[frame_id-1][track_id]['wholebody_keypoints'][-21:, :]
+
+    return new_single_frame_dict
+            
+
+def simple_process_hand_in_single_frame(args, single_frame_dict, video_kpts2d_list, frame_id):
+    new_single_frame_dict = copy.deepcopy(single_frame_dict)
+    for track_id, person in new_single_frame_dict.items():
+        left_hand_valid = person['left_hand_valid']
+        left_hand_keypoints = person['left_hand_keypoints']
+        right_hand_valid = person['right_hand_valid']
+        right_hand_keypoints = person['right_hand_keypoints']
+        if left_hand_valid:
+            person['wholebody_keypoints'][-42:-21, :] = left_hand_keypoints
+        if right_hand_valid:
+            person['wholebody_keypoints'][-21:, :] = right_hand_keypoints
+    return new_single_frame_dict
+
+
+def split_cocowholebody_to_part(single_frame_list):
+    data_list = []
+    for person in single_frame_list:
+        wholebody_keypoints = person['wholebody_keypoints']
+        track_id = person['track_id']
+        body_keypoints = coco_to_part(wholebody_keypoints, 'body')
+        lhand_keypoints = coco_to_part(wholebody_keypoints, 'lhand')
+        rhand_keypoints = coco_to_part(wholebody_keypoints, 'rhand')
+        lfoot_keypoints = coco_to_part(wholebody_keypoints, 'lfoot')
+        rfoot_keypoints = coco_to_part(wholebody_keypoints, 'rfoot')
+        data_list.append({
+            'track_id': track_id,
+            'body_keypoints': body_keypoints,
+            'lhand_keypoints': lhand_keypoints,
+            'rhand_keypoints': rhand_keypoints,
+            'lfoot_keypoints': lfoot_keypoints,
+            'rfoot_keypoints': rfoot_keypoints
+        })
+    return data_list
+        
+
 def main(args):
     
     print('*' * 50)
@@ -351,10 +596,10 @@ def main(args):
         print("use smoothnet")
     else:
         print("don't use smoothnet")
-    if args.process_hand:
-        print("process hand using pre and post frames")
+    if args.complex_process_hand:
+        print("complex process hand")
     else:
-        print("don't process hand")
+        print("simple process hand")
     print('*' * 50)
     
     h36m_wo_face_dataset_info = 'configs/_base_/datasets/h36m_wo_face.py'
@@ -371,49 +616,65 @@ def main(args):
     
     assert len(video) == len(video_kpts2d_list)
     
+    # 初始化所有部位的二维关键点提升网络
     body_lift_model, lhand_lift_model, rhand_lift_model, \
         lfoot_lift_model, rfoot_lift_model = init_lift_models(args)
         
-    smoother = None
+    smoother_2d = None
+    smoother_3d = None
     if args.smooth:
-        smoother = Smoother(
+        smoother_2d = Smoother(
             filter_cfg=args.smooth_filter_cfg,
-            keypoint_key='h36m_keypoints',
+            keypoint_key='body_keypoints',
             keypoint_dim=2)
+        # smoother_3d = Smoother(
+        #     filter_cfg=args.smooth_filter_cfg,
+        #     keypoint_key='body_keypoints_3d',
+        #     keypoint_dim=3)
     
     for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
         
-        pre_frame_id = max(frame_id - 1, 0)
-        post_frame_id = min(frame_id + 1, len(video) - 1)
-        
         single_frame_dict = video_kpts2d_list[frame_id]
         
-        if args.process_hand:
-            # postprocess hands, using pre and post frame, using another hand
-            for track_id, person in single_frame_dict.items():
-                postprocess_hands_inplace(person, pre_frame_id, post_frame_id, video_kpts2d_list)    
+        if args.complex_process_hand:
+            single_frame_dict = complex_process_hand_in_single_frame(args, single_frame_dict, video_kpts2d_list, frame_id)
+        else:
+            single_frame_dict = simple_process_hand_in_single_frame(args, single_frame_dict, video_kpts2d_list, frame_id)
+            # # postprocess hands, using pre and post frame, using another hand
+            # for track_id, person in single_frame_dict.items():
+            #     postprocess_hands_inplace(person, pre_frame_id, post_frame_id, video_kpts2d_list)    
             
+        # track_id用在手部处理，现在不需要了
         single_frame_list = []
         for track_id, person in single_frame_dict.items():
             single_frame_list.append({
-                'wholebody_keypoints': person['wholebody_keypoints'],
-                'track_id': person['track_id']})
+                    'wholebody_keypoints': person['wholebody_keypoints'],
+                    'track_id': person['track_id']
+                })
             
-        # before: single_frame_list: [dict(wholebody_keypoints, track_id), ...]
-        single_frame_list = convert_cocowholebody_to_h36m(single_frame_list)
-        # after: single_frame_list: [dict(h36m_keypoints, track_id), ...]
+        # print(single_frame_list)
             
-        # 从目前的效果看
-        if smoother is not None:
-            single_frame_list = smoother.smooth(single_frame_list)
+        # 将coco-wholebody分解成五个部位
+        # single_frame_list数据结构:[dict(track_id, body_keypoints, lhand_keypoints, rhand_keypoints, lfoot_keypoints, rfoot_keypoints), ...]
+        single_frame_list = split_cocowholebody_to_part(single_frame_list)
+
+        # # before: single_frame_list: [dict(wholebody_keypoints, track_id), ...]
+        # single_frame_list = convert_cocowholebody_to_h36m(single_frame_list)
+        # # after: single_frame_list: [dict(h36m_keypoints, track_id), ...]
             
+        if smoother_2d is not None:
+            single_frame_list = smoother_2d.smooth(single_frame_list)
+                   
         # extract different part sequence
+        # xxx_results_2d数据结构: [dict(keypoints, track_id, bbox), ...]
         body_results_2d = extract_results_2d(single_frame_list, 'body', video.width, video.height)
         lhand_results_2d = extract_results_2d(single_frame_list, 'lhand', video.width, video.height)
         rhand_results_2d = extract_results_2d(single_frame_list, 'rhand', video.width, video.height)
         lfoot_results_2d = extract_results_2d(single_frame_list, 'lfoot', video.width, video.height)
         rfoot_results_2d = extract_results_2d(single_frame_list, 'rfoot', video.width, video.height)
         
+        # body二维关键点提升
+        # body_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
         body_lift_results = inference_pose_lifter_model(
             body_lift_model,
             pose_results_2d=[body_results_2d],
@@ -423,8 +684,8 @@ def main(args):
             image_size=video.resolution,
             norm_pose_2d=args.norm_pose_2d)
         
-        # body_lift_results: dict(track_id, keypoints(NxKx3), keypoints(Kx4))
-
+        # lhand二维关键点提升
+        # lhand_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
         lhand_lift_results = inference_pose_lifter_model(
             lhand_lift_model,
             pose_results_2d=[lhand_results_2d],
@@ -434,6 +695,8 @@ def main(args):
             image_size=video.resolution,
             norm_pose_2d=args.norm_pose_2d)
         
+        # rhand二维关键点提升
+        # rhand_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
         rhand_lift_results = inference_pose_lifter_model(
             rhand_lift_model,
             pose_results_2d=[rhand_results_2d],
@@ -443,6 +706,8 @@ def main(args):
             image_size=video.resolution,
             norm_pose_2d=args.norm_pose_2d)
         
+        # lfoot二维关键点提升
+        # lfoot_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
         lfoot_lift_results = inference_pose_lifter_model(
             lfoot_lift_model,
             pose_results_2d=[lfoot_results_2d],
@@ -452,6 +717,8 @@ def main(args):
             image_size=video.resolution,
             norm_pose_2d=args.norm_pose_2d)
         
+        # rfoot二维关键点提升
+        # rfoot_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
         rfoot_lift_results = inference_pose_lifter_model(
             rfoot_lift_model,
             pose_results_2d=[rfoot_results_2d],
@@ -461,13 +728,25 @@ def main(args):
             image_size=video.resolution,
             norm_pose_2d=args.norm_pose_2d)
         
-        
         assert len(body_lift_results) == len(lhand_lift_results) == len(rhand_lift_results) == \
             len(lfoot_lift_results) == len(rfoot_lift_results)
         
-        
+        # h36m_wo_face_lift_results数据结构:[dict(track_id, keypoints, keypoints_3d), ...]
         h36m_wo_face_lift_results = merge_kpts_according_trackid([body_lift_results, lhand_lift_results, 
                                                                 rhand_lift_results, lfoot_lift_results, rfoot_lift_results])
+            
+        # 3d smooth
+        if smoother_3d is not None:
+            
+            for person in h36m_wo_face_lift_results:
+                person['body_keypoints_3d'] = person['keypoints_3d'][:17]
+            
+            h36m_wo_face_lift_results = smoother_3d.smooth(h36m_wo_face_lift_results)
+            
+            for person in h36m_wo_face_lift_results:
+                person['keypoints_3d'][:17] = person['body_keypoints_3d']
+                del person['body_keypoints_3d']
+    
         
         # post process for better visualize
         for person in h36m_wo_face_lift_results:
@@ -487,14 +766,14 @@ def main(args):
             dataset_info=h36m_wo_face_dataset_info,
             kpt_score_thr=0,
             out_file=None,
-            radius=2,
-            thickness=1,
+            radius=5,
+            thickness=5,
             vis_height=1000,
             num_instances=-1,
             show=False,
             axis_azimuth=-90)
         
-        # cv2.imwrite(f'{frame_id}.jpg', img_vis)
+        # cv2.imwrite(f'workspace/complex_norm/{frame_id}.jpg', img_vis)
         
         if writer is None:
             writer = cv2.VideoWriter(
