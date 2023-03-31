@@ -83,11 +83,34 @@ def load_bvh(filename):
             
     fh.close()
     
-    data = np.array(frame_list).reshape(num_frame, len(names) + 1, 3)   
-    root_positions = data[:, 0, :]
-    joint_rotations = data[:, 1:, :]
+    data = np.array(frame_list).reshape(num_frame, len(names) + 1, 3)
+    
+    # F x 3
+    video_root_positions = data[:, 0, :]
+    
+    # F x N x 3
+    video_joint_rotations_euler = data[:, 1:, :]
+    
+    # N x 3, mm => m
+    offsets = offsets / 1000.0
+    
+    video_joint_positions = []
+    video_joint_rotations = []
+    video_joint_orientations = []
+    
+    for idx in range(num_frame):
+        
+        frame_joint_rotations = R.from_euler(seq='ZYX', angles=video_joint_rotations_euler[idx], degrees=True).as_quat()
+        frame_joint_positions, frame_joint_orientations = fk(offsets, frame_joint_rotations, video_root_positions[idx])
+        video_joint_positions.append(frame_joint_positions)
+        video_joint_rotations.append(frame_joint_rotations)
+        video_joint_orientations.append(frame_joint_orientations)
+        
+    video_joint_positions = np.array(video_joint_positions)
+    video_joint_rotations = np.array(video_joint_rotations)
+    video_joint_orientations = np.array(video_joint_orientations)
    
-    return names, parents, offsets, root_positions, joint_rotations
+    return names, parents, offsets, video_joint_positions, video_joint_rotations, video_joint_orientations
 
 
 def fk(offsets, rotations, root_position):
@@ -98,10 +121,12 @@ def fk(offsets, rotations, root_position):
             positions.append(root_position)
             orientations.append(rotations[i])
         else:
-            cur_orientation = orientations[i - 1] * rotations[i]
-            cur_position = orientations[i - 1].apply(offsets[i]) + positions[i - 1]
-            orientations.append(cur_orientation)
+            cur_orientation = R.from_quat(orientations[i - 1]) * R.from_quat(rotations[i])
+            cur_position = R.from_quat(orientations[i - 1]).apply(offsets[i]) + positions[i - 1]
+            orientations.append(cur_orientation.as_quat())
             positions.append(cur_position)
+    positions = np.array(positions)
+    orientations = np.array(orientations)
     return positions, orientations
 
 
@@ -170,9 +195,29 @@ def two_bone_ik(joint_offsets, joint_positions, joint_orientations, target_pos):
     return new_joint_positions, new_joint_rotations, new_joint_orientations
     
     
-def foot_ik():
+def foot_ik(offsets, frame_joint_positions, frame_joint_orientations, indices):
+    
+    # 1. get joint_offsets, joint_positions, joint_orientations, target_pos
+    joint_offsets = offsets[indices]
+    joint_positions = frame_joint_positions[indices]
+    joint_orientations = frame_joint_orientations[indices]
+    target_pos = cal_target_pos(joint_positions[-1])
+    
+    # 2. two bone ik
+    new_joint_positions, new_joint_rotations, new_joint_orientations = two_bone_ik(joint_offsets, joint_positions, joint_orientations, target_pos)
+    print(joint_positions, new_joint_positions)
+    exit()
+    
+    # 3. foot rotation
     pass
 
+
+def cal_target_pos(end_effector, ground, height=77/1000.0):
+    target_pos = np.array(end_effector)
+    target_pos[1] -= height
+    # print(end_effector, target_pos)
+    # exit()
+    return target_pos
 
 
 def get_parser():
@@ -187,25 +232,39 @@ def get_parser():
 
 def main(args):
     # use bvh file and foot-contact file
-    names, parents, offsets, root_positions, joint_rotations = load_bvh(args.bvh_file)
+    names, parents, offsets, video_joint_positions, video_joint_rotations, video_joint_orientations = load_bvh(args.bvh_file)
+    
+    index_Left_hip = names.index('Left_hip')
+    index_Left_knee = names.index('Left_knee')
+    index_Left_foot = names.index('Left_foot')
+    
+    index_Right_hip = names.index('Right_hip')
+    index_Right_knee = names.index('Right_knee')
+    index_Right_foot = names.index('Right_foot')
+    
+    left_indices = [index_Left_hip, index_Left_knee, index_Left_foot]
+    right_indices = [index_Right_hip, index_Right_knee, index_Right_foot]
+    
     with open(args.footcontact_pkl_file, 'rb') as fin:
         footcontact = pickle.load(fin)
     
     # footcontact中包含了多个被追踪人的触地状况
     footcontact = footcontact[args.track_id]
-    assert len(root_positions) == len(footcontact) == len(joint_rotations)
+    assert len(video_joint_positions) == len(footcontact)
     
     for frame_id, single_frame_contact in enumerate(mmcv.track_iter_progress(footcontact)):
         # res: [left_heel, left_toes, right_heel, right_toes]
         res = single_frame_contact[2]
+        frame_joint_positions = video_joint_positions[frame_id]
+        frame_joint_orientations = video_joint_orientations[frame_id]
         
         if res[0] and res[1]:
             # 左脚触地
-            pass
+            foot_ik(offsets, frame_joint_positions, frame_joint_orientations, left_indices)
         
         if res[2] and res[3]:
             # 右脚触地
-            pass
+            foot_ik(offsets, frame_joint_positions, frame_joint_orientations, right_indices)
     
 
 
@@ -224,3 +283,15 @@ if __name__ == '__main__':
     parser = get_parser()
     args = parser.parse_args()
     main(args)
+    
+    # names, parents, offsets, video_joint_positions, video_joint_rotations, video_joint_orientations = load_bvh('../video2bvh/output.bvh')
+    
+    # with open("tmp.pkl", "wb") as fout:
+    #     pickle.dump({
+    #         "names": names,
+    #         "parents": parents,
+    #         "offsets": offsets,
+    #         "video_joint_positions": video_joint_positions,
+    #         "video_joint_rotations": video_joint_rotations,
+    #         "video_joint_orientations": video_joint_orientations
+    #     }, fout)

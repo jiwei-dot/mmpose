@@ -632,6 +632,7 @@ def main(args):
         #     keypoint_key='body_keypoints_3d',
         #     keypoint_dim=3)
     
+    video_output_list = []
     for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
         
         single_frame_dict = video_kpts2d_list[frame_id]
@@ -747,6 +748,7 @@ def main(args):
                 person['keypoints_3d'][:17] = person['body_keypoints_3d']
                 del person['body_keypoints_3d']
     
+        video_output_list.append(copy.deepcopy(h36m_wo_face_lift_results))
         
         # post process for better visualize
         for person in h36m_wo_face_lift_results:
@@ -781,6 +783,10 @@ def main(args):
         writer.write(img_vis)
     
     writer.release()
+    tmp = osp.basename(args.video_path).split('.')[0]
+    name = f'video_{tmp}_kpts3d.pkl'
+    with open(osp.join(args.save_path, name), 'wb') as fout:
+        pickle.dump(video_output_list, fout)
         
 
 if __name__ == '__main__':
