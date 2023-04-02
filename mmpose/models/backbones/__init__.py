@@ -29,7 +29,7 @@ from .vgg import VGG
 from .vipnas_mbv3 import ViPNAS_MobileNetV3
 from .vipnas_resnet import ViPNAS_ResNet
 # add by jiwei
-from .resnet import CA_ResNet
+from .resnet import CA_ResNet, Ghost_CA_ResNet
 
 __all__ = [
     'AlexNet', 'HourglassNet', 'HourglassAENet', 'HRNet', 'MobileNetV2',
@@ -39,5 +39,5 @@ __all__ = [
     'LiteHRNet', 'V2VNet', 'HRFormer', 'PyramidVisionTransformer',
     'PyramidVisionTransformerV2', 'SwinTransformer', 'I3D', 'TCFormer',
     # add by jiwei
-    'CA_ResNet'
+    'CA_ResNet', 'Ghost_CA_ResNet'
 ]

@@ -27,7 +27,7 @@ def parse_args():
         default='./.dev_scripts/benchmark/benchmark_cfg_flops_speed.yaml')
 
     parser.add_argument(
-        '--device', default='cuda:0', help='Device used for inference')
+        '--device', default='cuda:1', help='Device used for inference')
 
     parser.add_argument(
         '--batch-size',
