@@ -233,7 +233,7 @@ def build_batch_data(data_list, med_dist, window_size=9):
 
 def get_parser():
     parser = ArgumentParser()
-    parser.add_argument('--pkl-file', required=True)
+    parser.add_argument('--pkl-file', required=True, help='video 2d kpts pkl file')
     parser.add_argument('--checkpoint', default='workspace/checkpoints/contact_detection_weights.pth')
     parser.add_argument('--device', default='cuda:0')
     parser.add_argument('--show-result', action='store_true')
@@ -262,13 +262,18 @@ def main(args):
         pred = pred.cpu().numpy()
         foot_contact_results[track_id] = pred
 
+        name = (os.path.basename(args.video_file)).split('.')[0]
+        save_filename = f'footcontact_{name}.pkl'
+        with open(os.path.join(args.save_root,save_filename), 'wb') as fout:
+            pickle.dump(foot_contact_results, fout)
+            
 
     if args.show_result:
         assert args.video_file is not None
         video = mmcv.VideoReader(args.video_file)
         assert len(video) == len(video_kpts2d_list)
-        name = (os.path.basename(args.video_file)).split('.')[0]
-        save_filename = f'footcntact_{name}.mp4'
+        # name = (os.path.basename(args.video_file)).split('.')[0]
+        save_filename = f'footcontact_{name}.mp4'
         writer = cv2.VideoWriter(
             os.path.join(args.save_root, save_filename),
             cv2.VideoWriter_fourcc(*'mp4v'),
@@ -283,6 +288,8 @@ def main(args):
                 left_toe = wholebody_keypoints[left_toe_idx, :2]
                 right_heel = wholebody_keypoints[right_heel_idx, :2]
                 right_toe = wholebody_keypoints[right_toe_idx, :2]
+                
+                # res: [left_heel, left_toes, right_heel, right_toes]
                 res = foot_contact_results[track_id][frame_id][2]
                 
                 left_heel_color = (0, 255, 0) if res[0] else (0, 0, 255)
