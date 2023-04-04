@@ -220,10 +220,10 @@ def imshow_keypoints_3d(
     kpt_score_thr=0.3,
     num_instances=-1,
     *,
-    axis_azimuth=70,
+    axis_azimuth=-90,
     axis_limit=1.7,
     axis_dist=10.0,
-    axis_elev=15.0,
+    axis_elev=-90,
 ):
     """Draw 3D keypoints and links in 3D coordinates.
 
@@ -302,19 +302,23 @@ def imshow_keypoints_3d(
         )
         x_c = np.mean(kpts[valid, 0]) if sum(valid) > 0 else 0
         y_c = np.mean(kpts[valid, 1]) if sum(valid) > 0 else 0
-        ax.set_xlim3d([x_c - axis_limit / 2, x_c + axis_limit / 2])
-        ax.set_ylim3d([y_c - axis_limit / 2, y_c + axis_limit / 2])
-        ax.set_zlim3d([0, axis_limit])
+        z_c = np.mean(kpts[valid, 2]) if sum(valid) > 0 else 0
+        # ax.set_xlim3d([x_c - axis_limit / 2, x_c + axis_limit / 2])
+        # ax.set_ylim3d([y_c - axis_limit / 2, y_c + axis_limit / 2])
+        # ax.set_zlim3d([z_c - axis_limit / 2, z_c + axis_limit / 2])
+        ax.set_xlim3d([4.0, 6.0])
+        ax.set_ylim3d([4.0, 6.0])
+        ax.set_zlim3d([4.0, 6.0])
         ax.set_aspect('auto')
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.set_zlabel('z')
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.set_zticks([])
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        ax.set_zticklabels([])
+        # ax.set_xticks([])
+        # ax.set_yticks([])
+        # ax.set_zticks([])
+        # ax.set_xticklabels([])
+        # ax.set_yticklabels([])
+        # ax.set_zticklabels([])
         ax.dist = axis_dist
 
         if not dummy and pose_kpt_color is not None:

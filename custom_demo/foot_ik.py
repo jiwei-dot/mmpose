@@ -205,18 +205,15 @@ def foot_ik(offsets, frame_joint_positions, frame_joint_orientations, indices):
     
     # 2. two bone ik
     new_joint_positions, new_joint_rotations, new_joint_orientations = two_bone_ik(joint_offsets, joint_positions, joint_orientations, target_pos)
-    print(joint_positions, new_joint_positions)
-    exit()
     
-    # 3. foot rotation
-    pass
+    # 3. foot rotation, rotate foot such that big(small) toe and heel are contact ground 
+    
+    return new_joint_positions, new_joint_rotations, new_joint_orientations
 
 
-def cal_target_pos(end_effector, ground, height=77/1000.0):
+def cal_target_pos(end_effector, height=77/1000.0):
     target_pos = np.array(end_effector)
-    target_pos[1] -= height
-    # print(end_effector, target_pos)
-    # exit()
+    target_pos[1] = height
     return target_pos
 
 
@@ -260,13 +257,20 @@ def main(args):
         
         if res[0] and res[1]:
             # 左脚触地
-            foot_ik(offsets, frame_joint_positions, frame_joint_orientations, left_indices)
-        
+            new_joint_positions, new_joint_rotations, new_joint_orientations = foot_ik(offsets, frame_joint_positions, frame_joint_orientations, left_indices)
+            video_joint_positions[left_indices] = new_joint_positions
+            video_joint_rotations[left_indices] = new_joint_rotations
+            video_joint_orientations[left_indices] = new_joint_orientations
+            
         if res[2] and res[3]:
             # 右脚触地
-            foot_ik(offsets, frame_joint_positions, frame_joint_orientations, right_indices)
+            new_joint_positions, new_joint_rotations, new_joint_orientations = foot_ik(offsets, frame_joint_positions, frame_joint_orientations, right_indices)
+            video_joint_positions[right_indices] = new_joint_positions
+            video_joint_rotations[right_indices] = new_joint_rotations
+            video_joint_orientations[right_indices] = new_joint_orientations
+            
+    save_bvh(video_joint_positions, video_joint_rotations)
     
-
 
 if __name__ == '__main__':
     

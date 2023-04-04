@@ -114,7 +114,7 @@ def h36m_to_part(keypoints, part):
 def get_parser():
     parser = ArgumentParser()
     
-    parser.add_argument('--pkl-path', required=True)
+    parser.add_argument('--pkl-path', required=True, help="kpts2d pkl file")
     parser.add_argument('--video-path', required=True)
     parser.add_argument('--save-path', required=True)
     
@@ -346,11 +346,11 @@ def merge_kpts_according_trackid(need_merge_kpts_list):
         keypoints = np.zeros((num_keypoints, 3))
         keypoints_3d = np.zeros((num_keypoints, 4))
         
-        keypoints[:17, ] = tmp_need_merge_kpts_list[0][track_id]['keypoints'][0]
-        keypoints[17:38, ] = tmp_need_merge_kpts_list[1][track_id]['keypoints'][0][1:]
-        keypoints[38:59, ] = tmp_need_merge_kpts_list[2][track_id]['keypoints'][0][1:]
-        keypoints[59:62, ] = tmp_need_merge_kpts_list[3][track_id]['keypoints'][0][1:]
-        keypoints[62:65, ] = tmp_need_merge_kpts_list[4][track_id]['keypoints'][0][1:]
+        keypoints[:17, ] = tmp_need_merge_kpts_list[0][track_id]['keypoints']
+        keypoints[17:38, ] = tmp_need_merge_kpts_list[1][track_id]['keypoints'][1:]
+        keypoints[38:59, ] = tmp_need_merge_kpts_list[2][track_id]['keypoints'][1:]
+        keypoints[59:62, ] = tmp_need_merge_kpts_list[3][track_id]['keypoints'][1:]
+        keypoints[62:65, ] = tmp_need_merge_kpts_list[4][track_id]['keypoints'][1:]
         
         keypoints_3d[:17, ] = tmp_need_merge_kpts_list[0][track_id]['keypoints_3d']
         keypoints_3d[17:38, ] = tmp_need_merge_kpts_list[1][track_id]['keypoints_3d'][1:] + keypoints_3d[13, ]
@@ -358,6 +358,8 @@ def merge_kpts_according_trackid(need_merge_kpts_list):
         keypoints_3d[59:62, ] = tmp_need_merge_kpts_list[3][track_id]['keypoints_3d'][1:] + keypoints_3d[6, ]
         keypoints_3d[62:65, ] = tmp_need_merge_kpts_list[4][track_id]['keypoints_3d'][1:] + keypoints_3d[3, ]
         
+        # 将root点平移到(5, 5, 5)位置方便后续计算相机内参
+        keypoints_3d[:, :3] += np.array([5., 5., 5.])
         
         wholebody_wo_face_lift_results.append({
             'track_id': track_id,
@@ -580,6 +582,7 @@ def split_cocowholebody_to_part(single_frame_list):
         rfoot_keypoints = coco_to_part(wholebody_keypoints, 'rfoot')
         data_list.append({
             'track_id': track_id,
+            'wholebody_keypoints': wholebody_keypoints,
             'body_keypoints': body_keypoints,
             'lhand_keypoints': lhand_keypoints,
             'rhand_keypoints': rhand_keypoints,
@@ -587,7 +590,40 @@ def split_cocowholebody_to_part(single_frame_list):
             'rfoot_keypoints': rfoot_keypoints
         })
     return data_list
+
+
+def cal_camera_intrisic(h36m_wo_face_lift_results, track_id=0):
+    person_track = None
+    for person in h36m_wo_face_lift_results:
+        if person['track_id'] == track_id:
+            person_track = person
+            break
+    if person_track is None:
+        raise ValueError
+    
+    kpts_2d = person_track['keypoints'][:17, :2]
+    kpts_3d = person_track['keypoints_3d'][:17, :3]
+
+    X = kpts_2d[:, :2]
+    y = kpts_3d[:, :2] / (kpts_3d[:, 2:3] + 1e-10)
+    
+    c1 = (X[:, 0].mean() * (X[:, 0] * y[:, 0]).mean() - (X[:, 0] * X[:, 0]).mean() * (y[:, 0]).mean()) / \
+     ((X[:, 0] * y[:, 0]).mean() - X[:, 0].mean() * y[:, 0].mean())
+
+    f1 = ((X[:, 0] * y[:, 0]).mean() - c1 * y[:, 0].mean()) / \
+        ((X[:, 0] * X[:, 0]).mean() - 2 * c1 * X[:, 0].mean() + c1 * c1)
+
+    c2 = (X[:, 1].mean() * (X[:, 1] * y[:, 1]).mean() - (X[:, 1] * X[:, 1]).mean() * (y[:, 1]).mean()) / \
+        ((X[:, 1] * y[:, 1]).mean() - X[:, 1].mean() * y[:, 1].mean())
+
+    f2 = ((X[:, 1] * y[:, 1]).mean() - c2 * y[:, 1].mean()) / \
+        ((X[:, 1] * X[:, 1]).mean() - 2 * c2 * X[:, 1].mean() + c2 * c2)
         
+    c = np.array([c1, c2])[np.newaxis, :]
+    f = np.array([1.0 / f1, 1.0 / f2])[np.newaxis, :]
+    
+    return c, f
+             
 
 def main(args):
     
@@ -625,8 +661,9 @@ def main(args):
     if args.smooth:
         smoother_2d = Smoother(
             filter_cfg=args.smooth_filter_cfg,
-            keypoint_key='body_keypoints',
+            keypoint_key='wholebody_keypoints',
             keypoint_dim=2)
+        
         # smoother_3d = Smoother(
         #     filter_cfg=args.smooth_filter_cfg,
         #     keypoint_key='body_keypoints_3d',
@@ -656,7 +693,7 @@ def main(args):
         # print(single_frame_list)
             
         # 将coco-wholebody分解成五个部位
-        # single_frame_list数据结构:[dict(track_id, body_keypoints, lhand_keypoints, rhand_keypoints, lfoot_keypoints, rfoot_keypoints), ...]
+        # single_frame_list数据结构:[dict(track_id, wholebody_keypoints, body_keypoints, lhand_keypoints, rhand_keypoints, lfoot_keypoints, rfoot_keypoints), ...]
         single_frame_list = split_cocowholebody_to_part(single_frame_list)
 
         # # before: single_frame_list: [dict(wholebody_keypoints, track_id), ...]
@@ -665,6 +702,8 @@ def main(args):
             
         if smoother_2d is not None:
             single_frame_list = smoother_2d.smooth(single_frame_list)
+            if smoother_2d.key == 'wholebody_keypoints':
+                single_frame_list = split_cocowholebody_to_part(single_frame_list)
                    
         # extract different part sequence
         # xxx_results_2d数据结构: [dict(keypoints, track_id, bbox), ...]
@@ -676,6 +715,9 @@ def main(args):
         
         # body二维关键点提升
         # body_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
+        pre_body_results_2d_dict = dict()
+        for person in body_results_2d:
+            pre_body_results_2d_dict[person['track_id']] = copy.deepcopy(person)
         body_lift_results = inference_pose_lifter_model(
             body_lift_model,
             pose_results_2d=[body_results_2d],
@@ -684,9 +726,16 @@ def main(args):
             with_track_id=True,
             image_size=video.resolution,
             norm_pose_2d=args.norm_pose_2d)
+        for person in body_lift_results:
+            person['keypoints'] = pre_body_results_2d_dict[person['track_id']]['keypoints']
+        del pre_body_results_2d_dict
+
         
         # lhand二维关键点提升
         # lhand_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
+        pre_lhand_results_2d_dict = dict()
+        for person in lhand_results_2d:
+            pre_lhand_results_2d_dict[person['track_id']] = copy.deepcopy(person)
         lhand_lift_results = inference_pose_lifter_model(
             lhand_lift_model,
             pose_results_2d=[lhand_results_2d],
@@ -695,9 +744,15 @@ def main(args):
             with_track_id=True,
             image_size=video.resolution,
             norm_pose_2d=args.norm_pose_2d)
+        for person in lhand_lift_results:
+            person['keypoints'] = pre_lhand_results_2d_dict[person['track_id']]['keypoints']
+        del pre_lhand_results_2d_dict
         
         # rhand二维关键点提升
         # rhand_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
+        pre_rhand_results_2d_dict = dict()
+        for person in rhand_results_2d:
+            pre_rhand_results_2d_dict[person['track_id']] = copy.deepcopy(person)
         rhand_lift_results = inference_pose_lifter_model(
             rhand_lift_model,
             pose_results_2d=[rhand_results_2d],
@@ -706,9 +761,15 @@ def main(args):
             with_track_id=True,
             image_size=video.resolution,
             norm_pose_2d=args.norm_pose_2d)
+        for person in rhand_lift_results:
+            person['keypoints'] = pre_rhand_results_2d_dict[person['track_id']]['keypoints']
+        del pre_rhand_results_2d_dict
         
         # lfoot二维关键点提升
         # lfoot_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
+        pre_lfoot_results_2d_dict = dict()
+        for person in lfoot_results_2d:
+            pre_lfoot_results_2d_dict[person['track_id']] = copy.deepcopy(person)
         lfoot_lift_results = inference_pose_lifter_model(
             lfoot_lift_model,
             pose_results_2d=[lfoot_results_2d],
@@ -717,9 +778,15 @@ def main(args):
             with_track_id=True,
             image_size=video.resolution,
             norm_pose_2d=args.norm_pose_2d)
+        for person in lfoot_lift_results:
+            person['keypoints'] = pre_lfoot_results_2d_dict[person['track_id']]['keypoints']
+        del pre_lfoot_results_2d_dict
         
         # rfoot二维关键点提升
         # rfoot_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
+        pre_rfoot_results_2d_dict = dict()
+        for person in rfoot_results_2d:
+            pre_rfoot_results_2d_dict[person['track_id']] = copy.deepcopy(person)
         rfoot_lift_results = inference_pose_lifter_model(
             rfoot_lift_model,
             pose_results_2d=[rfoot_results_2d],
@@ -728,6 +795,9 @@ def main(args):
             with_track_id=True,
             image_size=video.resolution,
             norm_pose_2d=args.norm_pose_2d)
+        for person in rfoot_lift_results:
+            person['keypoints'] = pre_rfoot_results_2d_dict[person['track_id']]['keypoints']
+        del pre_rfoot_results_2d_dict
         
         assert len(body_lift_results) == len(lhand_lift_results) == len(rhand_lift_results) == \
             len(lfoot_lift_results) == len(rfoot_lift_results)
@@ -747,16 +817,27 @@ def main(args):
             for person in h36m_wo_face_lift_results:
                 person['keypoints_3d'][:17] = person['body_keypoints_3d']
                 del person['body_keypoints_3d']
+                
+        # 这里的代码有些问题，第一帧必须要有人
+        if frame_id == 0:
+            intrisic_c, intrisic_f = cal_camera_intrisic(h36m_wo_face_lift_results, track_id=0)
+        else:
+            for person in h36m_wo_face_lift_results:
+                root_2d = person['keypoints'][0:1][:, :2]
+                root_3d = np.array([0., 0., 5.])
+                root_3d[:2] = (root_2d - intrisic_c) / intrisic_f * root_3d[2]
+                person['keypoints_3d'][:, :3] += root_3d - np.array([[5., 5., 5.]])
+                
     
         video_output_list.append(copy.deepcopy(h36m_wo_face_lift_results))
         
         # post process for better visualize
-        for person in h36m_wo_face_lift_results:
-            keypoints_3d = person['keypoints_3d']
-            keypoints_3d = keypoints_3d[..., [0, 2, 1]]
-            keypoints_3d[..., 2] = -keypoints_3d[..., 2]
-            keypoints_3d[..., 2] -= np.min(keypoints_3d[..., 2], axis=-1, keepdims=True)
-            person['keypoints_3d'] = keypoints_3d
+        # for person in h36m_wo_face_lift_results:
+        #     keypoints_3d = person['keypoints_3d']
+        #     keypoints_3d = keypoints_3d[..., [0, 2, 1]]
+        #     keypoints_3d[..., 2] = -keypoints_3d[..., 2]
+        #     # keypoints_3d[..., 2] -= np.min(keypoints_3d[..., 2], axis=-1, keepdims=True)
+        #     person['keypoints_3d'] = keypoints_3d
         
         if len(h36m_wo_face_lift_results) == 0:
             continue
@@ -775,7 +856,9 @@ def main(args):
             show=False,
             axis_azimuth=-90)
         
-        # cv2.imwrite(f'workspace/complex_norm/{frame_id}.jpg', img_vis)
+        # cv2.imwrite(f'{frame_id}.jpg', img_vis)
+        # if frame_id > 2:
+        #     exit()
         
         if writer is None:
             writer = cv2.VideoWriter(
