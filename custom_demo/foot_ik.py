@@ -83,7 +83,7 @@ def load_bvh(filename):
             
     fh.close()
     
-    data = np.array(frame_list).reshape(num_frame, len(names) + 1, 3)
+    data = np.array(frame_list, dtype=np.float32).reshape(num_frame, len(names) + 1, 3)
     
     # F x 3
     video_root_positions = data[:, 0, :]
@@ -101,7 +101,7 @@ def load_bvh(filename):
     for idx in range(num_frame):
         
         frame_joint_rotations = R.from_euler(seq='ZYX', angles=video_joint_rotations_euler[idx], degrees=True).as_quat()
-        frame_joint_positions, frame_joint_orientations = fk(offsets, frame_joint_rotations, video_root_positions[idx])
+        frame_joint_positions, frame_joint_orientations = fk(offsets, frame_joint_rotations, parents, video_root_positions[idx])
         video_joint_positions.append(frame_joint_positions)
         video_joint_rotations.append(frame_joint_rotations)
         video_joint_orientations.append(frame_joint_orientations)
@@ -136,21 +136,21 @@ def save_bvh(args, root_positions_list, rotations_list, seq='ZYX'):
     print('convert success!')
 
 
-def fk(offsets, rotations, root_position):
-    positions = []
-    orientations = []
-    for i in range(len(offsets)):
-        if i == 0:
-            positions.append(root_position)
-            orientations.append(rotations[i])
-        else:
-            cur_orientation = R.from_quat(orientations[i - 1]) * R.from_quat(rotations[i])
-            cur_position = R.from_quat(orientations[i - 1]).apply(offsets[i]) + positions[i - 1]
-            orientations.append(cur_orientation.as_quat())
-            positions.append(cur_position)
-    positions = np.array(positions)
-    orientations = np.array(orientations)
-    return positions, orientations
+def fk(offsets, rotations, parents, root_position):
+        positions = []
+        orientations = []
+        for idx, parent in enumerate(parents):
+            if parent == -1:
+                positions.append(root_position)
+                orientations.append(rotations[idx])
+            else:
+                cur_orientation = R.from_quat(orientations[parent]) * R.from_quat(rotations[idx])
+                cur_position = R.from_quat(orientations[parent]).apply(offsets[idx]) + positions[parent]
+                orientations.append(cur_orientation.as_quat())
+                positions.append(cur_position)
+        positions = np.array(positions)
+        orientations = np.array(orientations)
+        return positions, orientations
 
 
 def cal_theta_of_two_vec(vec1, vec2):
@@ -179,7 +179,6 @@ def two_bone_ik(joint_offsets, joint_positions, joint_orientations, target_pos):
     assert len(joint_offsets) == len(joint_positions) == len(joint_orientations) == 3
     new_joint_positions = copy.deepcopy(joint_positions)
     new_joint_orientations = copy.deepcopy(joint_orientations)
-    
     
     a, b, c = joint_positions
     t = target_pos
@@ -238,8 +237,8 @@ def foot_ik(offsets, frame_joint_positions, frame_joint_orientations, indices):
     
     # 2. two bone ik
     new_joint_positions, new_joint_rotations, new_joint_orientations = two_bone_ik(joint_offsets, joint_positions, joint_orientations, target_pos)
-    print(joint_positions[1:])
-    print(new_joint_positions[1:])
+    # print(joint_positions[1:])
+    # print(new_joint_positions[1:])
     # 3. foot rotation, rotate foot such that big(small) toe and heel are contact ground 
     # todo
     return new_joint_positions, new_joint_rotations, new_joint_orientations
@@ -266,6 +265,9 @@ def main(args):
     # use bvh file and foot-contact file
     names, parents, offsets, video_joint_positions, video_joint_rotations, video_joint_orientations = load_bvh(args.bvh_file)
     
+    ground_height = np.min(video_joint_positions[:, :, 1])
+    video_joint_positions[:, :, 1] -= ground_height
+    
     index_Left_hip = names.index('Left_hip')
     index_Left_knee = names.index('Left_knee')
     index_Left_foot = names.index('Left_foot')
@@ -287,21 +289,23 @@ def main(args):
     for frame_id, single_frame_contact in enumerate(mmcv.track_iter_progress(footcontact)):
         # res: [left_heel, left_toes, right_heel, right_toes]
         res = single_frame_contact[2]
+        
         frame_joint_positions = video_joint_positions[frame_id]
+        frame_joint_rotations = video_joint_rotations[frame_id]
         frame_joint_orientations = video_joint_orientations[frame_id]
         
         if res[0] and res[1]:
             # 左脚触地
             new_joint_positions, new_joint_rotations, new_joint_orientations = foot_ik(offsets, frame_joint_positions, frame_joint_orientations, left_indices)
             frame_joint_positions[left_indices] = new_joint_positions
-            frame_joint_orientations[left_indices] = new_joint_rotations
+            frame_joint_rotations[left_indices] = new_joint_rotations
             # video_joint_orientations[left_indices] = new_joint_orientations
             
         if res[2] and res[3]:
             # 右脚触地
             new_joint_positions, new_joint_rotations, new_joint_orientations = foot_ik(offsets, frame_joint_positions, frame_joint_orientations, right_indices)
             frame_joint_positions[right_indices] = new_joint_positions
-            frame_joint_orientations[right_indices] = new_joint_rotations
+            frame_joint_rotations[right_indices] = new_joint_rotations
             # video_joint_orientations[right_indices] = new_joint_orientations
             
     save_bvh(args, video_joint_positions[:, 0, :], video_joint_rotations)
