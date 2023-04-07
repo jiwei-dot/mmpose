@@ -1,6 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import copy
+import math
 
+import torch
 import torch.nn as nn
 import torch.utils.checkpoint as cp
 from mmcv.cnn import (ConvModule, build_conv_layer, build_norm_layer,
@@ -699,3 +701,242 @@ class ResNetV1d(ResNet):
 
     def __init__(self, **kwargs):
         super().__init__(deep_stem=True, avg_down=True, **kwargs)
+
+
+class CoordAttention(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 reduction=8):
+        super().__init__()
+        self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+        self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
+        mid_channels = max(8, in_channels // reduction)
+        self.conv1 = nn.Conv2d(in_channels, mid_channels, kernel_size=1, stride=1, padding=0)
+        self.bn1 = nn.BatchNorm2d(mid_channels)
+        self.act1 = nn.Hardswish()
+        self.conv_h = nn.Conv2d(mid_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.conv_w = nn.Conv2d(mid_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        
+    def forward(self, x):
+        identity = x
+        N, C, H, W = x.shape
+        # [N, C, H, 1]
+        x_h = self.pool_h(x)
+        # [N, C, W, 1]
+        x_w = self.pool_w(x).permute(0, 1, 3, 2)
+        # [N, C, H+W, 1]
+        x_cat = torch.cat([x_h, x_w], dim=2)
+        out = self.act1(self.bn1(self.conv1(x_cat)))
+        x_h, x_w = torch.split(out, [H, W], dim=2)
+        x_w = x_w.permute(0, 1, 3, 2)
+        out_h = torch.sigmoid(self.conv_h(x_h))
+        out_w = torch.sigmoid(self.conv_w(x_w))
+        out = identity * out_w * out_h
+        return out
+
+class CA_Bottleneck(Bottleneck):
+    
+    def __init__(self, 
+                 in_channels, 
+                 out_channels, 
+                 expansion=4, 
+                 stride=1, 
+                 dilation=1, 
+                 downsample=None, 
+                 style='pytorch', 
+                 with_cp=False, 
+                 conv_cfg=None, 
+                 norm_cfg=dict(type='BN')):
+        super().__init__(in_channels, out_channels, expansion, stride, dilation, downsample, style, with_cp, conv_cfg, norm_cfg)
+        self.ca = CoordAttention(in_channels=out_channels, out_channels=out_channels)
+        
+    def forward(self, x):
+        """Forward function."""
+        identity = x
+
+        out = self.conv1(x)
+        out = self.norm1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.norm2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.norm3(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out = self.ca(out)
+        out += identity
+        out = self.relu(out)
+
+        return out
+    
+    
+@BACKBONES.register_module()
+class CA_ResNet(ResNet):
+    
+    arch_settings = {
+        50: (CA_Bottleneck, (3, 4, 6, 3)),
+        101: (CA_Bottleneck, (3, 4, 23, 3)),
+        152: (CA_Bottleneck, (3, 8, 36, 3))
+    }
+    
+    def __init__(
+        self, 
+        depth, 
+        in_channels=3, 
+        stem_channels=64, 
+        base_channels=64, 
+        expansion=None, 
+        num_stages=4, 
+        strides=(1, 2, 2, 2), 
+        dilations=(1, 1, 1, 1), 
+        out_indices=(3, ), 
+        style='pytorch', 
+        deep_stem=False, 
+        avg_down=False, 
+        frozen_stages=-1, 
+        conv_cfg=None, 
+        norm_cfg=dict(type='BN', requires_grad=True), 
+        norm_eval=False, 
+        with_cp=False, 
+        zero_init_residual=True):
+        super().__init__(depth, in_channels, stem_channels, base_channels, expansion, num_stages, strides, dilations, out_indices, style, deep_stem, avg_down, frozen_stages, conv_cfg, norm_cfg, norm_eval, with_cp, zero_init_residual)
+
+
+class Ghost_CA_Bottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, s=4, d=3):
+        super().__init__()
+        self.conv1 = GhostModule(inplanes, planes, kernel_size=1, dw_size=d, ratio=s, bias=False)
+        self.conv2 = GhostModule(planes, planes, kernel_size=3, dw_size=d, ratio=s,
+                                 stride=stride, padding=1, bias=False)
+        self.conv3 = GhostModule(planes, planes * 4, kernel_size=1, dw_size=d, ratio=s, bias=False)
+        self.relu = nn.ReLU(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
+        self.ca = CoordAttention(in_channels=planes*4, out_channels=planes*4)
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.relu(out)
+        out = self.conv3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+        # print('1', out.shape)
+        out = self.ca(out)
+        # print('2', out.shape)
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+@BACKBONES.register_module()
+class Ghost_CA_ResNet(BaseBackbone):
+
+    def __init__(self, block=Ghost_CA_Bottleneck, layers=[3, 4, 6, 3], s=4, d=3):
+        self.inplanes = 64
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0], stride=1, s=s, d=d)
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, s=s, d=d)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, s=s, d=d)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2, s=s, d=d)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) and not isinstance(m, GhostModule):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def _make_layer(self, block, planes, blocks, stride=1, s=4, d=3):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                GhostModule(self.inplanes, planes * block.expansion, ratio=s, dw_size=d,
+                            kernel_size=1, stride=stride, bias=False),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample, s, d))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes, s=s, d=d))
+
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        return x
+    
+    
+class GhostModule(nn.Conv2d):
+    def __init__(self, in_channels, out_channels, kernel_size, dw_size=3, ratio=2, stride=1,
+                 padding=0, dilation=1, groups=1, bias=True):
+        super().__init__(
+            in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
+        self.weight = None
+        self.ratio = ratio
+        self.dw_size = dw_size
+        self.dw_dilation = (dw_size - 1) // 2
+        self.init_channels = math.ceil(out_channels / ratio)
+        self.new_channels = self.init_channels * (ratio - 1)
+
+        self.conv1 = nn.Conv2d(self.in_channels, self.init_channels, kernel_size, self.stride, padding=self.padding)
+        self.conv2 = nn.Conv2d(self.init_channels, self.new_channels, self.dw_size, 1, padding=int(self.dw_size / 2),
+                               groups=self.init_channels)
+
+        self.weight1 = nn.Parameter(torch.Tensor(self.init_channels, self.in_channels, kernel_size, kernel_size))
+        self.bn1 = nn.BatchNorm2d(self.init_channels)
+        if self.new_channels > 0:
+            self.weight2 = nn.Parameter(torch.Tensor(self.new_channels, 1, self.dw_size, self.dw_size))
+            self.bn2 = nn.BatchNorm2d(self.out_channels - self.init_channels)
+
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(out_channels))
+        else:
+            self.register_parameter('bias', None)
+        self.reset_custome_parameters()
+
+    def reset_custome_parameters(self):
+        nn.init.kaiming_uniform_(self.weight1, a=math.sqrt(5))
+        if self.new_channels > 0:
+            nn.init.kaiming_uniform_(self.weight2, a=math.sqrt(5))
+        if self.bias is not None:
+            nn.init.constant_(self.bias, 0)
+
+    def forward(self, input):
+        x1 = self.conv1(input)
+        if self.new_channels == 0:
+            return x1
+        x2 = self.conv2(x1)
+        x2 = x2[:, :self.out_channels - self.init_channels, :, :]
+        x = torch.cat([x1, x2], 1)
+        return x
+    

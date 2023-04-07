@@ -157,9 +157,12 @@ def get_parser():
     parser.add_argument('--wholebody-kps2d-checkpoint', default='workspace/checkpoints/tcformer_coco-wholebody_256x192-a0720efa_20220627.pth')
        
     # 256 x 256
-    parser.add_argument('--hand-kps2d-config', default='configs/hand/2d_kpt_sview_rgb_img/topdown_heatmap/coco_wholebody_hand/res50_coco_wholebody_hand_256x256.py')
-    # parser.add_argument('--hand-kps2d-checkpoint', default='workspace/checkpoints/res50_coco_wholebody_hand_256x256-8dbc750c_20210908.pth')
-    parser.add_argument('--hand-kps2d-checkpoint', default='work_dirs/res50_coco_wholebody_hand_256x256/best_AUC_epoch_140.pth')
+    # parser.add_argument('--hand-kps2d-config', default='configs/hand/2d_kpt_sview_rgb_img/topdown_heatmap/coco_wholebody_hand/res50_coco_wholebody_hand_256x256.py')
+    # # parser.add_argument('--hand-kps2d-checkpoint', default='workspace/checkpoints/res50_coco_wholebody_hand_256x256-8dbc750c_20210908.pth')
+    # parser.add_argument('--hand-kps2d-checkpoint', default='work_dirs/res50_coco_wholebody_hand_256x256/best_AUC_epoch_140.pth')
+    
+    parser.add_argument('--hand-kps2d-config', default='configs/hand/2d_kpt_sview_rgb_img/topdown_heatmap/coco_wholebody_hand/ca_res50_coco_wholebody_hand_256x256_adaptivewingloss.py')
+    parser.add_argument('--hand-kps2d-checkpoint', default='work_dirs/ca_res50_coco_wholebody_hand_256x256_adaptivewingloss/best_AUC_epoch_90.pth')
     
     parser.add_argument('--kpt-thr', default=0.3)
     
