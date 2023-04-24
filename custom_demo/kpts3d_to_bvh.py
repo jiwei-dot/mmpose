@@ -265,7 +265,7 @@ def get_parser():
     parser = ArgumentParser()
     parser.add_argument('--pkl-path', required=True)
     parser.add_argument('--out-root', required=True)
-    parser.add_argument('--template-bvh', default='res/template.bvh')
+    parser.add_argument('--template-bvh', default='custom_demo/bvh/direction.bvh')
     parser.add_argument('--device', default='cuda:0')
     parser.add_argument('--track-id', type=int, default=0)
     return parser
