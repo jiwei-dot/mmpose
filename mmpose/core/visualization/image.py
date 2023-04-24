@@ -224,6 +224,9 @@ def imshow_keypoints_3d(
     axis_limit=1.7,
     axis_dist=10.0,
     axis_elev=-90,
+    axis_azimuths=None,
+    axis_elevs=None,
+    vertical_axises=None
 ):
     """Draw 3D keypoints and links in 3D coordinates.
 
@@ -270,87 +273,156 @@ def imshow_keypoints_3d(
             pose_result = pose_result[:num_instances]
         elif len(pose_result) < num_instances:
             pose_result += [dict()] * (num_instances - len(pose_result))
-    num_axis = num_instances + 1 if show_img else num_instances
-
+     
     plt.ioff()
-    fig = plt.figure(figsize=(vis_height * num_axis * 0.01, vis_height * 0.01))
+    
+    if axis_azimuths is None or axis_elevs is None:
+        num_axis = num_instances + 1 if show_img else num_instances
+    
+        fig = plt.figure(figsize=(vis_height * num_axis * 0.01, vis_height * 0.01))
 
-    if show_img:
-        img = mmcv.imread(img, channel_order='bgr')
-        img = mmcv.bgr2rgb(img)
-        img = mmcv.imrescale(img, scale=vis_height / img.shape[0])
+        if show_img:
+            img = mmcv.imread(img, channel_order='bgr')
+            img = mmcv.bgr2rgb(img)
+            img = mmcv.imrescale(img, scale=vis_height / img.shape[0])
 
-        ax_img = fig.add_subplot(1, num_axis, 1)
-        ax_img.get_xaxis().set_visible(False)
-        ax_img.get_yaxis().set_visible(False)
-        ax_img.set_axis_off()
-        ax_img.set_title('Input')
-        ax_img.imshow(img, aspect='equal')
+            ax_img = fig.add_subplot(1, num_axis, 1)
+            ax_img.get_xaxis().set_visible(False)
+            ax_img.get_yaxis().set_visible(False)
+            ax_img.set_axis_off()
+            ax_img.set_title('Input')
+            ax_img.imshow(img, aspect='equal')
 
-    for idx, res in enumerate(pose_result):
-        dummy = len(res) == 0
-        kpts = np.zeros((1, 3)) if dummy else res['keypoints_3d']
-        if kpts.shape[1] == 3:
-            kpts = np.concatenate([kpts, np.ones((kpts.shape[0], 1))], axis=1)
-        valid = kpts[:, 3] >= kpt_score_thr
 
-        ax_idx = idx + 2 if show_img else idx + 1
-        ax = fig.add_subplot(1, num_axis, ax_idx, projection='3d')
-        ax.view_init(
-            elev=axis_elev,
-            azim=axis_azimuth,
-        )
-        x_c = np.mean(kpts[valid, 0]) if sum(valid) > 0 else 0
-        y_c = np.mean(kpts[valid, 1]) if sum(valid) > 0 else 0
-        z_c = np.mean(kpts[valid, 2]) if sum(valid) > 0 else 0
-        # ax.set_xlim3d([x_c - axis_limit / 2, x_c + axis_limit / 2])
-        # ax.set_ylim3d([y_c - axis_limit / 2, y_c + axis_limit / 2])
-        # ax.set_zlim3d([z_c - axis_limit / 2, z_c + axis_limit / 2])
-        ax.set_xlim3d([4.0, 6.0])
-        ax.set_ylim3d([4.0, 6.0])
-        ax.set_zlim3d([4.0, 6.0])
-        ax.set_aspect('auto')
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_zlabel('z')
-        # ax.set_xticks([])
-        # ax.set_yticks([])
-        # ax.set_zticks([])
-        # ax.set_xticklabels([])
-        # ax.set_yticklabels([])
-        # ax.set_zticklabels([])
-        ax.dist = axis_dist
+            for idx, res in enumerate(pose_result):
+                dummy = len(res) == 0
+                kpts = np.zeros((1, 3)) if dummy else res['keypoints_3d']
+                if kpts.shape[1] == 3:
+                    kpts = np.concatenate([kpts, np.ones((kpts.shape[0], 1))], axis=1)
+                valid = kpts[:, 3] >= kpt_score_thr
 
-        if not dummy and pose_kpt_color is not None:
-            pose_kpt_color = np.array(pose_kpt_color)
-            assert len(pose_kpt_color) == len(kpts)
-            x_3d, y_3d, z_3d = np.split(kpts[:, :3], [1, 2], axis=1)
-            # matplotlib uses RGB color in [0, 1] value range
-            _color = pose_kpt_color[..., ::-1] / 255.
-            ax.scatter(
-                x_3d[valid],
-                y_3d[valid],
-                z_3d[valid],
-                marker='o',
-                color=_color[valid],
-            )
+                ax_idx = idx + 2 if show_img else idx + 1
+                ax = fig.add_subplot(1, num_axis, ax_idx, projection='3d')
+                ax.view_init(
+                    elev=axis_elev,
+                    azim=axis_azimuth,
+                )
+                x_c = np.mean(kpts[valid, 0]) if sum(valid) > 0 else 0
+                y_c = np.mean(kpts[valid, 1]) if sum(valid) > 0 else 0
+                ax.set_xlim3d([x_c - axis_limit / 2, x_c + axis_limit / 2])
+                ax.set_ylim3d([y_c - axis_limit / 2, y_c + axis_limit / 2])
+                ax.set_zlim3d([0, axis_limit])
+                ax.set_aspect('auto')
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.set_zticks([])
+                ax.set_xticklabels([])
+                ax.set_yticklabels([])
+                ax.set_zticklabels([])
+                ax.dist = axis_dist
 
-        if not dummy and skeleton is not None and pose_link_color is not None:
-            pose_link_color = np.array(pose_link_color)
-            assert len(pose_link_color) == len(skeleton)
-            for link, link_color in zip(skeleton, pose_link_color):
-                link_indices = [_i for _i in link]
-                xs_3d = kpts[link_indices, 0]
-                ys_3d = kpts[link_indices, 1]
-                zs_3d = kpts[link_indices, 2]
-                kpt_score = kpts[link_indices, 3]
-                if kpt_score.min() > kpt_score_thr:
+                if not dummy and pose_kpt_color is not None:
+                    pose_kpt_color = np.array(pose_kpt_color)
+                    assert len(pose_kpt_color) == len(kpts)
+                    x_3d, y_3d, z_3d = np.split(kpts[:, :3], [1, 2], axis=1)
                     # matplotlib uses RGB color in [0, 1] value range
-                    _color = link_color[::-1] / 255.
-                    ax.plot(xs_3d, ys_3d, zs_3d, color=_color, zdir='z')
+                    _color = pose_kpt_color[..., ::-1] / 255.
+                    ax.scatter(
+                        x_3d[valid],
+                        y_3d[valid],
+                        z_3d[valid],
+                        marker='o',
+                        color=_color[valid],
+                    )
 
-        if 'title' in res:
-            ax.set_title(res['title'])
+                if not dummy and skeleton is not None and pose_link_color is not None:
+                    pose_link_color = np.array(pose_link_color)
+                    assert len(pose_link_color) == len(skeleton)
+                    for link, link_color in zip(skeleton, pose_link_color):
+                        link_indices = [_i for _i in link]
+                        xs_3d = kpts[link_indices, 0]
+                        ys_3d = kpts[link_indices, 1]
+                        zs_3d = kpts[link_indices, 2]
+                        kpt_score = kpts[link_indices, 3]
+                        if kpt_score.min() > kpt_score_thr:
+                            # matplotlib uses RGB color in [0, 1] value range
+                            _color = link_color[::-1] / 255.
+                            ax.plot(xs_3d, ys_3d, zs_3d, color=_color, zdir='z')
+
+                if 'title' in res:
+                    ax.set_title(res['title'])
+
+    else:
+        num_axis = num_instances * 2 + 1 if show_img else num_instances
+        fig = plt.figure(figsize=(vis_height * num_axis * 0.01, vis_height * 0.01))
+        
+        if show_img:
+            img = mmcv.imread(img, channel_order='bgr')
+            img = mmcv.bgr2rgb(img)
+            img = mmcv.imrescale(img, scale=vis_height / img.shape[0])
+
+            ax_img = fig.add_subplot(1, num_axis, 1)
+            ax_img.get_xaxis().set_visible(False)
+            ax_img.get_yaxis().set_visible(False)
+            ax_img.set_axis_off()
+            ax_img.set_title('Input')
+            ax_img.imshow(img, aspect='equal')
+            
+        for idx, res in enumerate(pose_result):
+            for angle_idx, (azim, elev, vertical_axis) in enumerate(zip(axis_azimuths, axis_elevs, vertical_axises)):
+                dummy = len(res) == 0
+                kpts = np.zeros((1, 3)) if dummy else res['keypoints_3d']
+                if kpts.shape[1] == 3:
+                    kpts = np.concatenate([kpts, np.ones((kpts.shape[0], 1))], axis=1)
+                valid = kpts[:, 3] >= kpt_score_thr
+
+                ax_idx = idx * len(axis_azimuths) + angle_idx + 2 if show_img else idx * len(axis_azimuths) + angle_idx + 1
+                ax = fig.add_subplot(1, num_axis, ax_idx, projection='3d')
+                ax.view_init(
+                    elev=elev,
+                    azim=azim,
+                    vertical_axis=vertical_axis,
+                )
+  
+                ax.set_xlim3d([4.0, 6.0])
+                ax.set_ylim3d([4.0, 6.0])
+                ax.set_zlim3d([4.0, 6.0])
+                ax.set_aspect('auto')
+                ax.set_xlabel('x')
+                ax.set_ylabel('y')
+                ax.set_zlabel('z')
+                ax.dist = axis_dist
+
+                if not dummy and pose_kpt_color is not None:
+                    pose_kpt_color = np.array(pose_kpt_color)
+                    assert len(pose_kpt_color) == len(kpts)
+                    x_3d, y_3d, z_3d = np.split(kpts[:, :3], [1, 2], axis=1)
+                    # matplotlib uses RGB color in [0, 1] value range
+                    _color = pose_kpt_color[..., ::-1] / 255.
+                    ax.scatter(
+                        x_3d[valid],
+                        y_3d[valid],
+                        z_3d[valid],
+                        marker='o',
+                        color=_color[valid],
+                    )
+
+                if not dummy and skeleton is not None and pose_link_color is not None:
+                    pose_link_color = np.array(pose_link_color)
+                    assert len(pose_link_color) == len(skeleton)
+                    for link, link_color in zip(skeleton, pose_link_color):
+                        link_indices = [_i for _i in link]
+                        xs_3d = kpts[link_indices, 0]
+                        ys_3d = kpts[link_indices, 1]
+                        zs_3d = kpts[link_indices, 2]
+                        kpt_score = kpts[link_indices, 3]
+                        if kpt_score.min() > kpt_score_thr:
+                            # matplotlib uses RGB color in [0, 1] value range
+                            _color = link_color[::-1] / 255.
+                            ax.plot(xs_3d, ys_3d, zs_3d, color=_color, zdir='z')
+
+                if 'title' in res:
+                    ax.set_title(res['title'])
 
     # convert figure to numpy array
     fig.tight_layout()

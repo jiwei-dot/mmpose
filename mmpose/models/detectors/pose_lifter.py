@@ -300,7 +300,10 @@ class PoseLifter(BasePose):
                     win_name='',
                     show=False,
                     wait_time=0,
-                    out_file=None):
+                    out_file=None,
+                    axis_azimuths=None,
+                    axis_elevs=None,
+                    vertical_axises=None):
         """Visualize 3D pose estimation results.
 
         Args:
@@ -392,6 +395,9 @@ class PoseLifter(BasePose):
             vis_height,
             num_instances=num_instances,
             axis_azimuth=axis_azimuth,
+            axis_azimuths=axis_azimuths,
+            axis_elevs=axis_elevs,
+            vertical_axises=vertical_axises
         )
 
         if show:

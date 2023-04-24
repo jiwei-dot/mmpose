@@ -1,116 +1,117 @@
 from argparse import ArgumentParser
 import numpy as np
 import copy
-import re
 import pickle
 from scipy.spatial.transform import Rotation as R
 
 import mmcv
 
+from utils import load_bvh
 
 
-def load_bvh(filename):
+
+# def load_bvh(filename):
     
-    fh = open(filename, mode='r')
-    active = -1
-    end_site = False
+#     fh = open(filename, mode='r')
+#     active = -1
+#     end_site = False
     
-    names = []
-    offsets = np.array([]).reshape((0, 3))
-    parents = np.array([], dtype=int)
+#     names = []
+#     offsets = np.array([]).reshape((0, 3))
+#     parents = np.array([], dtype=int)
     
-    num_frame = -1
-    frame_time = -1
-    frame_list = []
+#     num_frame = -1
+#     frame_time = -1
+#     frame_list = []
     
-    for line in fh:
+#     for line in fh:
         
-        if "HIERARCHY" in line:
-            continue
+#         if "HIERARCHY" in line:
+#             continue
     
-        if "MOTION" in line:
-            continue
+#         if "MOTION" in line:
+#             continue
         
-        rmatch = re.match(r"ROOT (\w+:?\w+)", line)
-        if rmatch:
-            names.append(rmatch.group(1))
-            offsets = np.append(offsets, np.array([[0, 0, 0]]), axis=0)
-            parents = np.append(parents, active)
-            active = (len(parents) - 1)
-            continue
+#         rmatch = re.match(r"ROOT (\w+:?\w+)", line)
+#         if rmatch:
+#             names.append(rmatch.group(1))
+#             offsets = np.append(offsets, np.array([[0, 0, 0]]), axis=0)
+#             parents = np.append(parents, active)
+#             active = (len(parents) - 1)
+#             continue
         
-        if "{" in line:
-            continue
+#         if "{" in line:
+#             continue
         
-        if "}" in line:
-            if end_site:
-                end_site = False
-            else:
-                active = parents[active]
-            continue
+#         if "}" in line:
+#             if end_site:
+#                 end_site = False
+#             else:
+#                 active = parents[active]
+#             continue
         
-        offmatch = re.match(r"\s*OFFSET\s+([\-\d\.e]+)\s+([\-\d\.e]+)\s+([\-\d\.e]+)", line)
-        if offmatch:
-            if not end_site:
-                offsets[active] = np.array([list(map(float, offmatch.groups()))])
-            continue
+#         offmatch = re.match(r"\s*OFFSET\s+([\-\d\.e]+)\s+([\-\d\.e]+)\s+([\-\d\.e]+)", line)
+#         if offmatch:
+#             if not end_site:
+#                 offsets[active] = np.array([list(map(float, offmatch.groups()))])
+#             continue
         
-        jmatch = re.match("\s*JOINT\s+(\w+:?\w+)", line)
-        if jmatch:
-            names.append(jmatch.group(1))
-            offsets = np.append(offsets, np.array([[0, 0, 0]]), axis=0)
-            parents = np.append(parents, active)
-            active = (len(parents) - 1)
-            continue
+#         jmatch = re.match("\s*JOINT\s+(\w+:?\w+)", line)
+#         if jmatch:
+#             names.append(jmatch.group(1))
+#             offsets = np.append(offsets, np.array([[0, 0, 0]]), axis=0)
+#             parents = np.append(parents, active)
+#             active = (len(parents) - 1)
+#             continue
         
-        if "End Site" in line:
-            end_site = True
-            continue
+#         if "End Site" in line:
+#             end_site = True
+#             continue
         
-        if 'CHANNELS' in line:
-            continue
+#         if 'CHANNELS' in line:
+#             continue
         
-        if "Frames" in line:
-            num_frame = int(line.strip().split(' ')[-1])
-            continue
+#         if "Frames" in line:
+#             num_frame = int(line.strip().split(' ')[-1])
+#             continue
             
-        if "Frame Time" in line:
-            frame_time = float(line.strip().split(' ')[-1])
-            continue
+#         if "Frame Time" in line:
+#             frame_time = float(line.strip().split(' ')[-1])
+#             continue
         
-        line = map(float, line.strip().split(" "))
-        frame_list.append(list(line))
+#         line = map(float, line.strip().split(" "))
+#         frame_list.append(list(line))
             
-    fh.close()
+#     fh.close()
     
-    data = np.array(frame_list, dtype=np.float32).reshape(num_frame, len(names) + 1, 3)
+#     data = np.array(frame_list, dtype=np.float32).reshape(num_frame, len(names) + 1, 3)
     
-    # F x 3
-    video_root_positions = data[:, 0, :]
+#     # F x 3
+#     video_root_positions = data[:, 0, :]
     
-    # F x N x 3
-    video_joint_rotations_euler = data[:, 1:, :]
+#     # F x N x 3
+#     video_joint_rotations_euler = data[:, 1:, :]
     
-    # N x 3, mm => m
-    offsets = offsets / 1000.0
+#     # N x 3, mm => m
+#     offsets = offsets / 1000.0
     
-    video_joint_positions = []
-    video_joint_rotations = []
-    video_joint_orientations = []
+#     video_joint_positions = []
+#     video_joint_rotations = []
+#     video_joint_orientations = []
     
-    for idx in range(num_frame):
+#     for idx in range(num_frame):
         
-        frame_joint_rotations = R.from_euler(seq='ZYX', angles=video_joint_rotations_euler[idx], degrees=True).as_quat()
-        frame_joint_positions, frame_joint_orientations = fk(offsets, frame_joint_rotations, parents, video_root_positions[idx])
-        video_joint_positions.append(frame_joint_positions)
-        video_joint_rotations.append(frame_joint_rotations)
-        video_joint_orientations.append(frame_joint_orientations)
+#         frame_joint_rotations = R.from_euler(seq='ZYX', angles=video_joint_rotations_euler[idx], degrees=True).as_quat()
+#         frame_joint_positions, frame_joint_orientations = fk(offsets, frame_joint_rotations, parents, video_root_positions[idx])
+#         video_joint_positions.append(frame_joint_positions)
+#         video_joint_rotations.append(frame_joint_rotations)
+#         video_joint_orientations.append(frame_joint_orientations)
         
-    video_joint_positions = np.array(video_joint_positions)
-    video_joint_rotations = np.array(video_joint_rotations)
-    video_joint_orientations = np.array(video_joint_orientations)
+#     video_joint_positions = np.array(video_joint_positions)
+#     video_joint_rotations = np.array(video_joint_rotations)
+#     video_joint_orientations = np.array(video_joint_orientations)
    
-    return names, parents, offsets, video_joint_positions, video_joint_rotations, video_joint_orientations
+#     return names, parents, offsets, video_joint_positions, video_joint_rotations, video_joint_orientations
 
 
 def save_bvh(args, root_positions_list, rotations_list, seq='ZYX'):
@@ -264,6 +265,12 @@ def get_parser():
 def main(args):
     # use bvh file and foot-contact file
     names, parents, offsets, video_joint_positions, video_joint_rotations, video_joint_orientations = load_bvh(args.bvh_file)
+    
+    # print(video_joint_positions[0])
+    # with open("workspace/video_h36m_kpts3d.pkl", "rb") as fin:
+    #     data = pickle.load(fin)
+    # print(data[0][0]['keypoints_3d'])  
+    # exit()
     
     ground_height = np.min(video_joint_positions[:, :, 1])
     video_joint_positions[:, :, 1] -= ground_height

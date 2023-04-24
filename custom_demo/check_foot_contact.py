@@ -234,11 +234,11 @@ def build_batch_data(data_list, med_dist, window_size=9):
 def get_parser():
     parser = ArgumentParser()
     parser.add_argument('--pkl-file', required=True, help='video 2d kpts pkl file')
+    parser.add_argument('--out-root', required=True)
     parser.add_argument('--checkpoint', default='workspace/checkpoints/contact_detection_weights.pth')
     parser.add_argument('--device', default='cuda:0')
     parser.add_argument('--show-result', action='store_true')
-    parser.add_argument('--video-file', default=None)
-    parser.add_argument('--save-root', default='workspace')
+    parser.add_argument('--video-path', default=None)
     return parser
 
 
@@ -262,20 +262,20 @@ def main(args):
         pred = pred.cpu().numpy()
         foot_contact_results[track_id] = pred
 
-        name = (os.path.basename(args.video_file)).split('.')[0]
+        name = (os.path.basename(args.video_path)).split('.')[0]
         save_filename = f'footcontact_{name}.pkl'
-        with open(os.path.join(args.save_root,save_filename), 'wb') as fout:
+        with open(os.path.join(args.out_root,save_filename), 'wb') as fout:
             pickle.dump(foot_contact_results, fout)
             
 
     if args.show_result:
-        assert args.video_file is not None
-        video = mmcv.VideoReader(args.video_file)
+        assert args.video_path is not None
+        video = mmcv.VideoReader(args.video_path)
         assert len(video) == len(video_kpts2d_list)
-        # name = (os.path.basename(args.video_file)).split('.')[0]
+        # name = (os.path.basename(args.video_path)).split('.')[0]
         save_filename = f'footcontact_{name}.mp4'
         writer = cv2.VideoWriter(
-            os.path.join(args.save_root, save_filename),
+            os.path.join(args.out_root, save_filename),
             cv2.VideoWriter_fourcc(*'mp4v'),
             video.fps,
             video.resolution)

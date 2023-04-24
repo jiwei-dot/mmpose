@@ -375,7 +375,10 @@ def vis_3d_pose_result(model,
                        num_instances=-1,
                        axis_azimuth=70,
                        show=False,
-                       out_file=None):
+                       out_file=None,
+                       axis_azimuths=None,
+                       axis_elevs=None,
+                       vertical_axises=None):
     """Visualize the 3D pose estimation results.
 
     Args:
@@ -472,7 +475,10 @@ def vis_3d_pose_result(model,
         num_instances=num_instances,
         axis_azimuth=axis_azimuth,
         show=show,
-        out_file=out_file)
+        out_file=out_file,
+        axis_azimuths=axis_azimuths,
+        axis_elevs=axis_elevs,
+        vertical_axises=vertical_axises)
 
     return img
 

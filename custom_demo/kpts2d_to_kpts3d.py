@@ -19,8 +19,6 @@ from mmpose.core import Smoother
 
 # 2. 2d kpts lift to 3d
 
-# 3. foot ground contact
-
 
 def convert_cocowholebody_to_h36m(single_frame_list):
     # single_frame_list: [dict(wholebody_keypoints, track_id), ...]
@@ -116,7 +114,7 @@ def get_parser():
     
     parser.add_argument('--pkl-path', required=True, help="kpts2d pkl file")
     parser.add_argument('--video-path', required=True)
-    parser.add_argument('--save-path', required=True)
+    parser.add_argument('--out-root', required=True)
     
     parser.add_argument('--device', default='cuda:0')
     
@@ -652,59 +650,83 @@ def main(args):
     
     assert len(video) == len(video_kpts2d_list)
     
-    # 初始化所有部位的二维关键点提升网络
+    
+    # ---------------------- 初始化所有部位的二维关键点提升网络 ------------------------------
     body_lift_model, lhand_lift_model, rhand_lift_model, \
         lfoot_lift_model, rfoot_lift_model = init_lift_models(args)
+    # -------------------------------------------------------------------------------------
         
-    smoother_2d = None
-    smoother_3d = None
+    
+    # ----------------------- 是否对姿态结果进行平滑 ----------------------------------------
+    # 这里默认分部位平滑，并且只对二维姿态进行了平滑
     if args.smooth:
-        smoother_2d = Smoother(
+        
+        smoother_2d_body = Smoother(
             filter_cfg=args.smooth_filter_cfg,
-            keypoint_key='wholebody_keypoints',
+            keypoint_key='body_keypoints',
             keypoint_dim=2)
         
+        smoother_2d_lhand = Smoother(
+            filter_cfg=args.smooth_filter_cfg,
+            keypoint_key='lhand_keypoints',
+            keypoint_dim=2)
+        
+        smoother_2d_rhand = Smoother(
+            filter_cfg=args.smooth_filter_cfg,
+            keypoint_key='rhand_keypoints',
+            keypoint_dim=2)
+        
+        smoother_2d_lfoot = Smoother(
+            filter_cfg=args.smooth_filter_cfg,
+            keypoint_key='lfoot_keypoints',
+            keypoint_dim=2)
+        
+        smoother_2d_rfoot = Smoother(
+            filter_cfg=args.smooth_filter_cfg,
+            keypoint_key='rfoot_keypoints',
+            keypoint_dim=2)
+        
+        # 暂不考虑对三维姿态进行平滑
         # smoother_3d = Smoother(
         #     filter_cfg=args.smooth_filter_cfg,
         #     keypoint_key='body_keypoints_3d',
         #     keypoint_dim=3)
+    # -----------------------------------------------------------------------------------------
+    
     
     video_output_list = []
     for frame_id, cur_frame in enumerate(mmcv.track_iter_progress(video)):
-        
         single_frame_dict = video_kpts2d_list[frame_id]
         
+        # ---------------------- 每一帧对手部进行后处理 ------------------------------------------
         if args.complex_process_hand:
             single_frame_dict = complex_process_hand_in_single_frame(args, single_frame_dict, video_kpts2d_list, frame_id)
         else:
             single_frame_dict = simple_process_hand_in_single_frame(args, single_frame_dict, video_kpts2d_list, frame_id)
-            # # postprocess hands, using pre and post frame, using another hand
-            # for track_id, person in single_frame_dict.items():
-            #     postprocess_hands_inplace(person, pre_frame_id, post_frame_id, video_kpts2d_list)    
+        # --------------------------------------------------------------------------------------
             
-        # track_id用在手部处理，现在不需要了
+        # ----------------------- 把dict转化为list ----------------------------------------------
         single_frame_list = []
         for track_id, person in single_frame_dict.items():
             single_frame_list.append({
                     'wholebody_keypoints': person['wholebody_keypoints'],
-                    'track_id': person['track_id']
-                })
-            
-        # print(single_frame_list)
-            
-        # 将coco-wholebody分解成五个部位
+                    'track_id': person['track_id']})
+        # --------------------------------------------------------------------------------------
+               
+        #  ----------------------- 将coco-wholebody分解成五个部位 -------------------------------
         # single_frame_list数据结构:[dict(track_id, wholebody_keypoints, body_keypoints, lhand_keypoints, rhand_keypoints, lfoot_keypoints, rfoot_keypoints), ...]
         single_frame_list = split_cocowholebody_to_part(single_frame_list)
+        # --------------------------------------------------------------------------------------
 
-        # # before: single_frame_list: [dict(wholebody_keypoints, track_id), ...]
-        # single_frame_list = convert_cocowholebody_to_h36m(single_frame_list)
-        # # after: single_frame_list: [dict(h36m_keypoints, track_id), ...]
-            
-        if smoother_2d is not None:
-            single_frame_list = smoother_2d.smooth(single_frame_list)
-            if smoother_2d.key == 'wholebody_keypoints':
-                single_frame_list = split_cocowholebody_to_part(single_frame_list)
-                   
+        # ------------------------ 分部位姿态平滑 -----------------------------------------------
+        if args.smooth:
+            single_frame_list = smoother_2d_body.smooth(single_frame_list)
+            single_frame_list = smoother_2d_lhand.smooth(single_frame_list)
+            single_frame_list = smoother_2d_rhand.smooth(single_frame_list)
+            single_frame_list = smoother_2d_lfoot.smooth(single_frame_list)
+            single_frame_list = smoother_2d_rfoot.smooth(single_frame_list)
+        # --------------------------------------------------------------------------------------
+                 
         # extract different part sequence
         # xxx_results_2d数据结构: [dict(keypoints, track_id, bbox), ...]
         body_results_2d = extract_results_2d(single_frame_list, 'body', video.width, video.height)
@@ -713,6 +735,7 @@ def main(args):
         lfoot_results_2d = extract_results_2d(single_frame_list, 'lfoot', video.width, video.height)
         rfoot_results_2d = extract_results_2d(single_frame_list, 'rfoot', video.width, video.height)
         
+        # ------------------------ 二维关键点提升 -----------------------------------------------
         # body二维关键点提升
         # body_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
         pre_body_results_2d_dict = dict()
@@ -730,7 +753,6 @@ def main(args):
             person['keypoints'] = pre_body_results_2d_dict[person['track_id']]['keypoints']
         del pre_body_results_2d_dict
 
-        
         # lhand二维关键点提升
         # lhand_lift_results: [dict(track_id, keypoints(NxKx3), keypoints_3d(Kx4)), ...]
         pre_lhand_results_2d_dict = dict()
@@ -801,24 +823,16 @@ def main(args):
         
         assert len(body_lift_results) == len(lhand_lift_results) == len(rhand_lift_results) == \
             len(lfoot_lift_results) == len(rfoot_lift_results)
+        # --------------------------------------------------------------------------------------
         
         # h36m_wo_face_lift_results数据结构:[dict(track_id, keypoints, keypoints_3d), ...]
         h36m_wo_face_lift_results = merge_kpts_according_trackid([body_lift_results, lhand_lift_results, 
                                                                 rhand_lift_results, lfoot_lift_results, rfoot_lift_results])
-            
-        # 3d smooth
-        if smoother_3d is not None:
-            
-            for person in h36m_wo_face_lift_results:
-                person['body_keypoints_3d'] = person['keypoints_3d'][:17]
-            
-            h36m_wo_face_lift_results = smoother_3d.smooth(h36m_wo_face_lift_results)
-            
-            for person in h36m_wo_face_lift_results:
-                person['keypoints_3d'][:17] = person['body_keypoints_3d']
-                del person['body_keypoints_3d']
                 
+        # ------------------------ 调整根关键点的位置 --------------------------------------------
         # 这里的代码有些问题，第一帧必须要有人
+        # 第一帧根关键点位置固定在(5, 5, 5),后续帧所有人根关键点的深度固定在5位置
+        # 这一步只能解决人在平面方向上产生的位移，无法解决在深度方向上产生的位移
         if frame_id == 0:
             intrisic_c, intrisic_f = cal_camera_intrisic(h36m_wo_face_lift_results, track_id=0)
         else:
@@ -827,17 +841,17 @@ def main(args):
                 root_3d = np.array([0., 0., 5.])
                 root_3d[:2] = (root_2d - intrisic_c) / intrisic_f * root_3d[2]
                 person['keypoints_3d'][:, :3] += root_3d - np.array([[5., 5., 5.]])
-                
-    
-        video_output_list.append(copy.deepcopy(h36m_wo_face_lift_results))
+        # --------------------------------------------------------------------------------------
         
-        # post process for better visualize
+        # # 坐标系转换
         # for person in h36m_wo_face_lift_results:
         #     keypoints_3d = person['keypoints_3d']
-        #     keypoints_3d = keypoints_3d[..., [0, 2, 1]]
+        #     keypoints_3d[..., [0, 1, 2]] = keypoints_3d[..., [0, 2, 1]]
         #     keypoints_3d[..., 2] = -keypoints_3d[..., 2]
-        #     # keypoints_3d[..., 2] -= np.min(keypoints_3d[..., 2], axis=-1, keepdims=True)
         #     person['keypoints_3d'] = keypoints_3d
+            
+                
+        video_output_list.append(copy.deepcopy(h36m_wo_face_lift_results))
         
         if len(h36m_wo_face_lift_results) == 0:
             continue
@@ -854,7 +868,9 @@ def main(args):
             vis_height=1000,
             num_instances=-1,
             show=False,
-            axis_azimuth=-90)
+            axis_azimuths=(-90, -41),
+            axis_elevs=(-90, -174),
+            vertical_axises=('z', 'y'))
         
         # cv2.imwrite(f'{frame_id}.jpg', img_vis)
         # if frame_id > 2:
@@ -862,14 +878,16 @@ def main(args):
         
         if writer is None:
             writer = cv2.VideoWriter(
-                osp.join(args.save_path, f'vis_{osp.basename(args.video_path)}'), fourcc, fps, (img_vis.shape[1], img_vis.shape[0]))
+                osp.join(args.out_root, f'vis_{osp.basename(args.video_path)}'), fourcc, fps, (img_vis.shape[1], img_vis.shape[0]))
         writer.write(img_vis)
-    
     writer.release()
-    tmp = osp.basename(args.video_path).split('.')[0]
-    name = f'video_{tmp}_kpts3d.pkl'
-    with open(osp.join(args.save_path, name), 'wb') as fout:
+    
+    # ------------------------ 保存每一帧的三维关键点 ----------------------------------------
+    video_name = osp.basename(args.video_path).split('.')[0]
+    name = f'video_{video_name}_kpts3d.pkl'
+    with open(osp.join(args.out_root, name), 'wb') as fout:
         pickle.dump(video_output_list, fout)
+    # --------------------------------------------------------------------------------------
         
 
 if __name__ == '__main__':
