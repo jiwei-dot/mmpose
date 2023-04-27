@@ -106,6 +106,7 @@ class ForwardKinematicQuat(nn.Module):
 class Criterion(nn.Module):
     def __init__(self, weight, device, loss_type='mse'):
         super().__init__()
+        self.num = np.count_nonzero(weight)
         self.weight = torch.from_numpy(weight).to(device)
         assert loss_type in ('mse', 'l1', 'smoothl1')
         if loss_type == 'mse':
@@ -118,9 +119,8 @@ class Criterion(nn.Module):
     def forward(self, pred, gt):
         loss = self.loss(pred, gt)
         loss = loss * self.weight
-        # print(self.weight)
-        # print(loss)
-        loss = loss.mean()
+        loss = loss.sum()
+        loss = loss / self.num
         return loss
         
         
@@ -273,10 +273,12 @@ def get_parser():
 
 def train_on_single_frame(args, frame_index, model, criterion, offsets_np, parents, gt_np):
     
+    # if frame_index % 100 == 0:
     model.reset_parameters()
-    model.train()
+
+    # model.train()
     # optimizer = optim.Adam(model.parameters(), lr=1)
-    optimizer = optim.LBFGS(model.parameters(), history_size=100, max_iter=5, lr=1, line_search_fn="strong_wolfe")
+    optimizer = optim.LBFGS(model.parameters(), lr=1, line_search_fn="strong_wolfe")
     
     pre_loss_e = None
     min_loss_diff = 1e-5
@@ -308,7 +310,7 @@ def train_on_single_frame(args, frame_index, model, criterion, offsets_np, paren
             raise NotImplemented
         
         loss_e = loss.item()
-        # print(frame_index, epoch, loss_e)
+        print(frame_index, epoch, loss_e)
         # print(model.weight.grad)
         epoch += 1
         
@@ -391,6 +393,7 @@ def main(args):
     # root + 躯干部位 + 左臂 + 左手 + 右臂 + 右手
     # joint_weights = [0.0] + [1.0] * 16 + [1.0] * 3 + [10.0] * 21 + [1.0] * 3 + [10.0] * 21
     joint_weights = [0.0] + [1.0] * 64
+    # joint_weights = [0.0] + [1.0] * 16 + [1.0] * 3 + [0.0] * 21 + [1.0] * 3 + [0.0] * 21
     joint_weights_np = np.array(joint_weights, dtype=np.float32)[:, np.newaxis]
 
     kpts_idx2name = h36m_wo_face_dataset_info.keypoint_id2name
@@ -418,6 +421,7 @@ def main(args):
     video_kpts3d = adjust_order(video_kpts3d, bvh_idx2name, kpts_name2idx)
     
     model = ForwardKinematicQuat(num_joints=len(joint_names), device=args.device)
+    model.train()
     model.to(args.device)
     
     
@@ -431,6 +435,9 @@ def main(args):
     
     # 一帧一帧地处理
     for frame_index, frame_kpts3d_np in enumerate(tqdm(video_kpts3d)):
+        # 坐标系转换
+        frame_kpts3d_np = frame_kpts3d_np[:, [0, 2, 1]]
+        frame_kpts3d_np[..., 2] = -frame_kpts3d_np[..., 2]
         frame_rotations = train_on_single_frame(args, frame_index, model, criterion, joint_offsets, 
                                                 joint_parents, frame_kpts3d_np)
         video_root_positions.append(frame_kpts3d_np[0])
