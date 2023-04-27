@@ -167,6 +167,8 @@ def get_video_kpts3d(pkl_file, need_track_id=0):
             
     filled_data_list = fill_list(data_list)
     video_kpts3d = np.array(filled_data_list)[..., :3]
+    # kpts2d_to_kpts3d.py把第一帧根关键点移动到(5, 5, 5)位置求解内参，这一步骤将其移回(0, 0, 0)
+    video_kpts3d -= np.array([5., 5., 5.])
     
     # 相机坐标系转化到BVH坐标系
     # 相机坐标系: x向右，y向下，z向前
@@ -328,7 +330,7 @@ def train_on_single_frame(args, frame_index, model, criterion, offsets_np, paren
 
 
 def save_bvh(args, offsets, root_positions_list, rotations_list, seq='ZYX'):
-    
+    # m -> mm
     offsets = offsets * 1000
     video_name = args.pkl_path.split('/')[-1].split('_')[1]
     output = os.path.join(args.out_root, f'{video_name}.bvh')
@@ -440,7 +442,8 @@ def main(args):
         frame_kpts3d_np[..., 2] = -frame_kpts3d_np[..., 2]
         frame_rotations = train_on_single_frame(args, frame_index, model, criterion, joint_offsets, 
                                                 joint_parents, frame_kpts3d_np)
-        video_root_positions.append(frame_kpts3d_np[0])
+        # m -> mm
+        video_root_positions.append(frame_kpts3d_np[0] * 1000)
         video_rotations.append(frame_rotations)
         
         
