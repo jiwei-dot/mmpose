@@ -833,6 +833,7 @@ def main(args):
         # 这里的代码有些问题，第一帧必须要有人
         # 第一帧根关键点位置固定在(5, 5, 5),后续帧所有人根关键点的深度固定在5位置
         # 这一步只能解决人在平面方向上产生的位移，无法解决在深度方向上产生的位移
+        # 之后应该改成通过神经网络预测根部关键点位置
         if frame_id == 0:
             intrisic_c, intrisic_f = cal_camera_intrisic(h36m_wo_face_lift_results, track_id=0)
         else:
