@@ -120,10 +120,10 @@ python custom_demo/kpts2d_to_kpts3d.py \
 在程序运行结束后，workspace目录下会多出一个名为``video_cxk_kpts3d.pkl``文件和一个名为``vis_cxk.mp4``视频文件
 
 
-## Step3: 将三维关键点转化为BVH文件(该方法非常慢, 6~7s/frame)
+## Step3: 将三维关键点转化为BVH文件(该方法非常慢, 10~15s/frame)
 <figure>
-<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGRiYjQ1NDRmODIyMDFhYzE1ZGVhMTc4MzY0NDI2YzljMDY0ZTRmYSZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/4gPzYS6DXLJszhwpe9/giphy.gif" width=250/>
-<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMDgwMTdjODgxZmU5NDc2NmQ0OTIwY2ZhNzZhMDE1OGMwMTQyYTJiMiZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/1GNZjIwfzL6lr1z1IC/giphy.gif" width=250/>
+<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNjM3N2YxNjFiY2ZlZmMwNDAxOTdhMzU2OWRkYzFmOTdmZTZmNjZhNSZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/JKWjQxvhbvMn7Rx5U6/giphy.gif" width=250/>
+<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMzY4MTE3MGI0NWQzNjlkMDNkNmNjNTQxY2ZhNGMyNDU0NjQ1MmYxNCZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/HqXYCYIgOZEx0hIbdn/giphy.gif" width=250/>
 </figure>
 
 ```shell
@@ -188,5 +188,29 @@ python custom_demo/check_foot_contact.py \
 ```
 在程序运行结束后，workspace目录下会多出一个名为``footcontact_cxk.pkl``文件和一个名为``footcontact_cxk.mp4``视频文件
 
-## Step5: 脚部IK(todo)
-只实现了two-bone-ik, 代码参见custom_demo/foot_ik.py
+## Step5: 脚部IK(这一部分代码存在bug, 使用two-bone-ik算法时目标末端点总是不可到达)
+```shell
+python custom_demo/foot_ik.py \
+    --bvh-file ${BVH_FILE} \
+    --out-root ${OUT_ROOT} \
+    --footcontact-pkl-file ${FOOTCONTACT_PKL_FILE} \
+    [--track-id ${TRACK_ID}]
+```
+
+### 参数解释：
+- bvh-file: Step3所生成的BVH文件, **必须指定**
+- out-root: 保存所生成新的BVH文件的路径，**必须指定**
+- footcontact-pkl-file: Step4所生成的触地状态文件, **必须指定**
+- track-id: 一个视频里面可能有多个人，具体针对哪一个人进行脚部IK，默认为0
+
+### 示例：
+```shell
+python custom_demo/foot_ik.py \
+    --pkl-path workspace/cxk.bvh \
+    --out-root workspace \
+    --footcontact-pkl-file workspace/footcontact_cxk.pkl
+```
+在程序运行结束后，workspace目录下会多出一个名为``new_cxk.bvh``文件
+
+
+
